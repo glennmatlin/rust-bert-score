@@ -1,0 +1,11 @@
+[package]
+name = "rust-bert-score"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.98"
+rayon = "1.10.0"
+rust-bert = "0.23.0"
+rust_tokenizers = "8.1.1"
+tch = "0.17.0"
