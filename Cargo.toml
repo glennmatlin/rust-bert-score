@@ -3,9 +3,32 @@ name = "rust-bert-score"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "rust_bert_score"
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 anyhow = "1.0.98"
 rayon = "1.10.0"
 rust-bert = "0.23.0"
 rust_tokenizers = "8.1.1"
 tch = "0.17.0"
+pyo3 = { version = "0.20", features = ["extension-module"], optional = true }
+numpy = { version = "0.20", optional = true }
+
+[features]
+default = []
+python = ["pyo3", "numpy"]
+
+[[example]]
+name = "demo"
+path = "examples/demo.rs"
+
+# Benchmarks require nightly Rust, uncomment to use:
+# [[bench]]
+# name = "benchmark"
+# harness = false
+
+[[bin]]
+name = "bert-score"
+path = "src/bin/bert-score.rs"

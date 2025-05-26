@@ -8,7 +8,7 @@ use tch::{Device, Tensor};
 
 /// Wrapper for a BERT-family tokenizer, handling tokenization, special tokens, and batching.
 pub struct Tokenizer {
-    tokenizer: TokenizerOption,
+    pub(crate) tokenizer: TokenizerOption,
     max_len: usize,
     truncation_strategy: TruncationStrategy,
     stride: usize,
