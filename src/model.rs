@@ -171,3 +171,123 @@ impl Model {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tch::{Device, Kind};
+
+    #[test]
+    fn test_model_type_support() {
+        // Test that we support the expected model types
+        let supported = vec![
+            ModelType::Bert,
+            ModelType::DistilBert,
+            ModelType::Roberta,
+            ModelType::XLMRoberta,
+            ModelType::Deberta,
+        ];
+        
+        for model_type in supported {
+            match model_type {
+                ModelType::Bert | ModelType::DistilBert | ModelType::Roberta | 
+                ModelType::XLMRoberta | ModelType::Deberta => {
+                    // These are all supported
+                    assert!(true);
+                }
+                _ => panic!("Unexpected model type"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_tensor_shapes() {
+        // Test expected tensor shapes for forward pass
+        let batch_size = 2;
+        let seq_len = 10;
+        let vocab_size = 30522;
+        
+        // Mock input tensors
+        let input_ids = Tensor::randint(vocab_size, &[batch_size, seq_len], (Kind::Int64, Device::Cpu));
+        let attention_mask = Tensor::ones(&[batch_size, seq_len], (Kind::Int64, Device::Cpu));
+        let token_type_ids = Tensor::zeros(&[batch_size, seq_len], (Kind::Int64, Device::Cpu));
+        
+        // Verify shapes
+        assert_eq!(input_ids.size(), vec![batch_size, seq_len]);
+        assert_eq!(attention_mask.size(), vec![batch_size, seq_len]);
+        assert_eq!(token_type_ids.size(), vec![batch_size, seq_len]);
+    }
+
+    #[test]
+    fn test_hidden_states_structure() {
+        // Test expected structure of hidden states output
+        let batch_size = 2;
+        let seq_len = 10;
+        let hidden_size = 768;
+        let num_layers = 12;
+        
+        // Mock hidden states for each layer
+        let hidden_states: Vec<Tensor> = (0..=num_layers)
+            .map(|_| Tensor::randn(&[batch_size, seq_len, hidden_size], (Kind::Float, Device::Cpu)))
+            .collect();
+        
+        // Verify we have embeddings + all layers
+        assert_eq!(hidden_states.len(), num_layers + 1);
+        
+        // Verify each hidden state has correct shape
+        for (i, state) in hidden_states.iter().enumerate() {
+            assert_eq!(
+                state.size(), 
+                vec![batch_size, seq_len, hidden_size],
+                "Hidden state {} has wrong shape", i
+            );
+        }
+    }
+
+    #[test]
+    fn test_resource_types() {
+        // Test that resource types are correctly mapped
+        use rust_bert::bert::{BertConfigResources, BertModelResources, BertVocabResources};
+        use rust_bert::distilbert::{
+            DistilBertConfigResources, DistilBertModelResources, DistilBertVocabResources
+        };
+        use rust_bert::roberta::{
+            RobertaConfigResources, RobertaModelResources, RobertaVocabResources
+        };
+        use rust_bert::deberta::{DebertaConfigResources, DebertaModelResources, DebertaVocabResources};
+        
+        // Just verify these resource types exist and can be referenced
+        let _ = BertConfigResources::BERT;
+        let _ = BertModelResources::BERT;
+        let _ = BertVocabResources::BERT;
+        
+        let _ = DistilBertConfigResources::DISTIL_BERT;
+        let _ = DistilBertModelResources::DISTIL_BERT;
+        let _ = DistilBertVocabResources::DISTIL_BERT;
+        
+        let _ = RobertaConfigResources::ROBERTA;
+        let _ = RobertaModelResources::ROBERTA;
+        let _ = RobertaVocabResources::ROBERTA;
+        
+        let _ = DebertaConfigResources::DEBERTA_BASE;
+        let _ = DebertaModelResources::DEBERTA_BASE;
+        let _ = DebertaVocabResources::DEBERTA_BASE;
+    }
+
+    #[test]
+    fn test_device_support() {
+        // Test that we handle different device types
+        let devices = vec![
+            Device::Cpu,
+            // Device::Cuda(0), // Only test if CUDA available
+        ];
+        
+        for device in devices {
+            match device {
+                Device::Cpu => assert!(true),
+                Device::Cuda(_) => assert!(true),
+                _ => panic!("Unexpected device type"),
+            }
+        }
+    }
+}

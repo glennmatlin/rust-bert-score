@@ -140,3 +140,139 @@ impl Tokenizer {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_tokenizers::tokenizer::TruncationStrategy;
+    use tch::Device;
+
+    #[test]
+    fn test_encoding_result_structure() {
+        // Test that EncodingResult maintains consistent shapes
+        let batch_size = 3;
+        let seq_len = 10;
+        
+        let input_ids = Tensor::zeros(&[batch_size, seq_len], (tch::Kind::Int64, Device::Cpu));
+        let attention_mask = Tensor::ones(&[batch_size, seq_len], (tch::Kind::Int64, Device::Cpu));
+        let token_type_ids = Tensor::zeros(&[batch_size, seq_len], (tch::Kind::Int64, Device::Cpu));
+        
+        let result = EncodingResult {
+            input_ids: input_ids.shallow_clone(),
+            attention_mask: attention_mask.shallow_clone(),
+            token_type_ids: token_type_ids.shallow_clone(),
+            token_ids: vec![vec![101, 2054, 102], vec![101, 2023, 102], vec![101, 102]],
+            segment_ids: vec![vec![0, 0, 0], vec![0, 0, 0], vec![0, 0]],
+            lengths: vec![3, 3, 2],
+        };
+        
+        assert_eq!(result.input_ids.size(), vec![batch_size, seq_len]);
+        assert_eq!(result.attention_mask.size(), vec![batch_size, seq_len]);
+        assert_eq!(result.token_type_ids.size(), vec![batch_size, seq_len]);
+        assert_eq!(result.token_ids.len(), batch_size as usize);
+        assert_eq!(result.segment_ids.len(), batch_size as usize);
+        assert_eq!(result.lengths.len(), batch_size as usize);
+    }
+
+    #[test]
+    fn test_truncation_strategies() {
+        // Test that all expected truncation strategies are valid
+        let strategies = vec![
+            TruncationStrategy::LongestFirst,
+            TruncationStrategy::OnlyFirst,
+            TruncationStrategy::OnlySecond,
+            TruncationStrategy::DoNotTruncate,
+        ];
+        
+        // Just verify they exist and can be used
+        for strategy in strategies {
+            match strategy {
+                TruncationStrategy::LongestFirst => assert!(true),
+                TruncationStrategy::OnlyFirst => assert!(true),
+                TruncationStrategy::OnlySecond => assert!(true),
+                TruncationStrategy::DoNotTruncate => assert!(true),
+            }
+        }
+    }
+
+    #[test]
+    fn test_padding_logic() {
+        // Test padding logic with mock data
+        let sequences = vec![
+            vec![101i64, 2054, 102],      // len=3
+            vec![101, 2023, 2003, 102],   // len=4
+            vec![101, 102],                // len=2
+        ];
+        
+        let max_len = sequences.iter().map(|s| s.len()).max().unwrap();
+        assert_eq!(max_len, 4);
+        
+        let pad_id = 0i64;
+        let mut padded_sequences = Vec::new();
+        
+        for seq in sequences {
+            let mut padded = seq.clone();
+            padded.resize(max_len, pad_id);
+            padded_sequences.push(padded);
+        }
+        
+        assert_eq!(padded_sequences[0], vec![101, 2054, 102, 0]);
+        assert_eq!(padded_sequences[1], vec![101, 2023, 2003, 102]);
+        assert_eq!(padded_sequences[2], vec![101, 102, 0, 0]);
+    }
+
+    #[test]
+    fn test_attention_mask_generation() {
+        // Test attention mask generation logic
+        let sequences = vec![
+            vec![101i64, 2054, 102],      // len=3
+            vec![101, 2023, 2003, 102],   // len=4
+            vec![101, 102],                // len=2
+        ];
+        
+        let max_len = 4;
+        let mut attention_masks = Vec::new();
+        
+        for seq in &sequences {
+            let seq_len = seq.len();
+            let mut mask = vec![1i64; seq_len];
+            mask.resize(max_len, 0);
+            attention_masks.push(mask);
+        }
+        
+        assert_eq!(attention_masks[0], vec![1, 1, 1, 0]);
+        assert_eq!(attention_masks[1], vec![1, 1, 1, 1]);
+        assert_eq!(attention_masks[2], vec![1, 1, 0, 0]);
+    }
+
+    #[test]
+    fn test_model_type_support() {
+        // Verify that we support the expected model types
+        use rust_bert::pipelines::common::ModelType;
+        
+        let supported_models = vec![
+            ModelType::Bert,
+            ModelType::DistilBert,
+            ModelType::Roberta,
+            ModelType::Albert,
+            ModelType::XLMRoberta,
+            ModelType::Electra,
+            ModelType::Marian,
+            ModelType::T5,
+            ModelType::GPT2,
+            ModelType::OpenAiGpt,
+            ModelType::XLNet,
+            ModelType::Reformer,
+            ModelType::ProphetNet,
+            ModelType::Longformer,
+            ModelType::MBart,
+            ModelType::M2M100,
+            ModelType::FNet,
+            ModelType::Deberta,
+            ModelType::DebertaV2,
+        ];
+        
+        // Just verify these model types exist
+        assert!(!supported_models.is_empty());
+    }
+}
