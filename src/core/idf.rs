@@ -15,6 +15,19 @@ pub struct IdfDict {
     pub num_documents: usize,
 }
 
+/// Type alias for a tokenized sequence of IDs.
+pub type TokenizedSequence = Vec<i64>;
+
+impl Default for IdfDict {
+    fn default() -> Self {
+        Self {
+            token_scores: HashMap::new(),
+            default_score: 0.0,
+            num_documents: 0,
+        }
+    }
+}
+
 impl IdfDict {
     /// Creates a new IDF dictionary from reference token sequences.
     ///
@@ -25,21 +38,16 @@ impl IdfDict {
     /// # Returns
     /// IdfDict with computed IDF scores
     pub fn from_references(
-        reference_tokens: &[Vec<i64>],
+        reference_tokens: &[TokenizedSequence],
         special_token_ids: &HashSet<i64>,
     ) -> Result<Self> {
         let num_documents = reference_tokens.len();
         if num_documents == 0 {
-            return Ok(Self {
-                token_scores: HashMap::new(),
-                default_score: 0.0,
-                num_documents: 0,
-            });
-        }
-        
+            return Ok(Self::default()); 
+        } 
+
         // Count document frequency for each token
         let mut document_frequencies: HashMap<i64, usize> = HashMap::new();
-        
         for tokens in reference_tokens {
             // Use set to count each token only once per document
             let unique_tokens: HashSet<&i64> = tokens.iter().collect();
@@ -47,32 +55,36 @@ impl IdfDict {
                 *document_frequencies.entry(token_id).or_insert(0) += 1;
             }
         }
-        
+
         // Compute IDF scores
-        let mut token_scores = HashMap::new();
+        // let mut token_scores = HashMap::new();
         let log_num_docs_plus_one = ((num_documents + 1) as f32).ln();
-        
-        for (&token_id, &doc_freq) in &document_frequencies {
-            if special_token_ids.contains(&token_id) {
-                // Special tokens get zero weight
-                token_scores.insert(token_id, 0.0);
-            } else {
-                // IDF formula: log((N + 1) / (df + 1))
-                let idf = log_num_docs_plus_one - ((doc_freq + 1) as f32).ln();
-                token_scores.insert(token_id, idf);
-            }
-        }
-        
+
+        // CHANGE: Use iterator instead of for loop to compute scores
+        // REASON: More idiomatic and prepares for parallel processing if scale up is needed
+        // DATE: 06-01-2025
+        // AUTHOR: Rodrigo
+        let token_scores = document_frequencies.into_iter()
+            .map(|(token_id, doc_freq )| {
+                if special_token_ids.contains(&token_id) {
+                    (token_id, 0.0) // Special tokens get zero weight
+                } else {
+                    // IDF formula: log((N + 1) / (df + 1))
+                    let idf = log_num_docs_plus_one - ((doc_freq + 1) as f32).ln();
+                    (token_id, idf)
+                }
+            }).collect();
+
         // Default score for unseen tokens
         let default_score = log_num_docs_plus_one;
-        
+
         Ok(Self {
             token_scores,
             default_score,
             num_documents,
         })
     }
-    
+
     /// Creates an IDF dictionary from a precomputed mapping.
     ///
     /// # Arguments
@@ -90,18 +102,13 @@ impl IdfDict {
             num_documents,
         }
     }
-    
+
     /// Gets the IDF score for a token ID.
     pub fn get_score(&self, token_id: i64) -> f32 {
         // First check if it's explicitly in the scores (including special tokens with 0)
-        if let Some(&score) = self.token_scores.get(&token_id) {
-            score
-        } else {
-            // For unseen tokens, return default score
-            self.default_score
-        }
+        *self.token_scores.get(&token_id).unwrap_or(&self.default_score)
     }
-    
+
     /// Converts token IDs to IDF weight tensors.
     ///
     /// # Arguments
@@ -111,21 +118,30 @@ impl IdfDict {
     ///
     /// # Returns
     /// Tensor of IDF weights with same length as token_ids
-    pub fn to_weight_tensor(&self, token_ids: &[i64], special_token_ids: &HashSet<i64>, device: Device) -> Tensor {
-        let weights: Vec<f32> = token_ids
-            .iter()
+    pub fn to_weight_tensor(
+        &self,
+        token_ids: &[i64],
+        special_token_ids: &HashSet<i64>,
+        device: Option<Device>,
+    ) -> Tensor {
+
+        let weights : Vec<f32> = token_ids.iter()
             .map(|&id| {
                 if special_token_ids.contains(&id) {
-                    0.0
+                    0.0 // Special tokens get zero weight
                 } else {
-                    self.get_score(id)
+                    self.get_score(id) // Get IDF score for regular tokens
                 }
             })
             .collect();
-        
-        Tensor::from_slice(&weights).to_device(device)
+
+        match device {
+            Some(dev) => Tensor::from_slice(&weights).to_device(dev),
+            None => Tensor::from_slice(&weights),
+        }
+
     }
-    
+
     /// Creates weight tensors for a batch of token sequences.
     ///
     /// # Arguments
@@ -139,7 +155,7 @@ impl IdfDict {
         &self,
         batch_token_ids: &[Vec<i64>],
         special_token_ids: &HashSet<i64>,
-        device: Device,
+        device: Option<Device>,
     ) -> Vec<Tensor> {
         batch_token_ids
             .iter()
@@ -162,93 +178,91 @@ pub fn compute_idf_weights(
     reference_tokens: &[Vec<i64>],
     candidate_tokens: &[Vec<i64>],
     special_token_ids: &HashSet<i64>,
-    device: Device,
+    device: Option<Device>,
 ) -> Result<(Vec<Tensor>, Vec<Tensor>)> {
     // Build IDF dictionary from references
     let idf_dict = IdfDict::from_references(reference_tokens, special_token_ids)?;
-    
+
     // Convert to weight tensors
-    let candidate_weights = idf_dict.to_weight_tensors_batch(candidate_tokens, special_token_ids, device);
-    let reference_weights = idf_dict.to_weight_tensors_batch(reference_tokens, special_token_ids, device);
-    
+    let candidate_weights =
+        idf_dict.to_weight_tensors_batch(candidate_tokens, special_token_ids, device);
+    let reference_weights =
+        idf_dict.to_weight_tensors_batch(reference_tokens, special_token_ids, device);
+
     Ok((candidate_weights, reference_weights))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_idf_computation() {
         // Test documents:
         // Doc 1: "the cat sat" -> [1, 2, 3]
         // Doc 2: "the dog sat" -> [1, 4, 3]
         // Doc 3: "a cat ran" -> [5, 2, 6]
-        let references = vec![
-            vec![1, 2, 3],
-            vec![1, 4, 3],
-            vec![5, 2, 6],
-        ];
-        
+        let references = vec![vec![1, 2, 3], vec![1, 4, 3], vec![5, 2, 6]];
+
         let special_tokens = HashSet::from([0]); // 0 is special token
-        
+
         let idf_dict = IdfDict::from_references(&references, &special_tokens).unwrap();
-        
+
         // Token 1 ("the"): appears in 2/3 docs
         // IDF = log((3+1)/(2+1)) = log(4/3) ≈ 0.288
         assert!((idf_dict.get_score(1) - 0.288).abs() < 0.01);
-        
+
         // Token 2 ("cat"): appears in 2/3 docs
         assert!((idf_dict.get_score(2) - 0.288).abs() < 0.01);
-        
+
         // Token 3 ("sat"): appears in 2/3 docs
         assert!((idf_dict.get_score(3) - 0.288).abs() < 0.01);
-        
+
         // Token 4 ("dog"): appears in 1/3 docs
         // IDF = log((3+1)/(1+1)) = log(4/2) = log(2) ≈ 0.693
         assert!((idf_dict.get_score(4) - 0.693).abs() < 0.01);
-        
+
         // Token 7 (unseen): gets default score
         // IDF = log((3+1)/(0+1)) = log(4) ≈ 1.386
         assert!((idf_dict.get_score(7) - 1.386).abs() < 0.01);
-        
+
         // Test weight tensor with special tokens
-        let test_tokens = vec![0, 1, 2, 7];  // special, seen, seen, unseen
-        let weights = idf_dict.to_weight_tensor(&test_tokens, &special_tokens, Device::Cpu);
-        
+        let test_tokens = vec![0, 1, 2, 7]; // special, seen, seen, unseen
+        let weights = idf_dict.to_weight_tensor(&test_tokens, &special_tokens, None);
+
         // Check that special token gets 0 weight
         assert_eq!(f32::try_from(weights.get(0)).unwrap(), 0.0);
     }
-    
+
     #[test]
     fn test_weight_tensor_conversion() {
         let mut scores = HashMap::new();
         scores.insert(1, 0.5);
         scores.insert(2, 1.0);
         scores.insert(3, 1.5);
-        
+
         let idf_dict = IdfDict::from_precomputed(scores, 2.0, 10);
-        
+
         let token_ids = vec![1, 2, 3, 4]; // 4 is unseen
         let special_tokens = HashSet::new(); // No special tokens in this test
-        let weights = idf_dict.to_weight_tensor(&token_ids, &special_tokens, Device::Cpu);
-        
+        let weights = idf_dict.to_weight_tensor(&token_ids, &special_tokens, None);
+
         let expected = vec![0.5, 1.0, 1.5, 2.0]; // 4 gets default score
-        
+
         // Check each value
         for (i, &expected_val) in expected.iter().enumerate() {
             let actual_val = f32::try_from(weights.get(i as i64)).unwrap();
             assert!((actual_val - expected_val).abs() < 1e-6);
         }
     }
-    
+
     #[test]
     fn test_empty_references() {
         let references: Vec<Vec<i64>> = vec![];
         let special_tokens = HashSet::new();
-        
+
         let idf_dict = IdfDict::from_references(&references, &special_tokens).unwrap();
-        
+
         assert_eq!(idf_dict.num_documents, 0);
         assert_eq!(idf_dict.get_score(1), 0.0); // Default for empty
     }
