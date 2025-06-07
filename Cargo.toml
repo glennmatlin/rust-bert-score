@@ -10,11 +10,17 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 anyhow = "1.0.98"
 rayon = "1.10.0"
-rust-bert = "0.23.0"
+rust-bert = { version = "0.23.0", features = ["hf-tokenizers"] }
 rust_tokenizers = "8.1.1"
 tch = "0.17.0"
 pyo3 = { version = "0.20", features = ["extension-module"], optional = true }
 numpy = { version = "0.20", optional = true }
+clap = { version = "4.5.39", features = ["derive"] }
+tokenizers = { version = "0.21.1", features = ["http"] }
+hf-hub = "0.4.2"
+
+[dev-dependencies]
+criterion = "0.6.0"
 
 [features]
 default = []
@@ -24,11 +30,18 @@ python = ["pyo3", "numpy"]
 name = "demo"
 path = "examples/demo.rs"
 
-# Benchmarks require nightly Rust, uncomment to use:
-# [[bench]]
-# name = "benchmark"
-# harness = false
+[[bench]]
+name = "bench"
+harness = false
 
 [[bin]]
 name = "bert-score"
 path = "src/bin/bert-score.rs"
+
+
+[profile.dev]
+opt-level = 1
+
+[profile.release-lto]
+inherits = "release"
+lto = true

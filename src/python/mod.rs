@@ -1,18 +1,16 @@
 //! Python bindings for rust-bert-score.
 
-use pyo3::prelude::*;
-use pyo3::exceptions::PyValueError;
-use pyo3::types::PyList;
 use numpy::{PyArray1, PyArray2};
+use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
+use pyo3::types::PyList;
 use std::collections::HashSet;
 
 use crate::{
-    BERTScorer as RustBERTScorer,
-    BERTScorerBuilder as RustBERTScorerBuilder,
-    BERTScorerConfig as RustBERTScorerConfig,
-    BERTScoreResult,
-    baseline::{BaselineScores, BaselineManager},
+    baseline::{BaselineManager, BaselineScores},
     similarity::compute_bertscore,
+    BERTScoreResult, BERTScorer as RustBERTScorer, BERTScorerBuilder as RustBERTScorerBuilder,
+    BERTScorerConfig as RustBERTScorerConfig,
 };
 use rust_bert::pipelines::common::ModelType;
 use tch::{Device, Tensor};
@@ -88,21 +86,32 @@ impl BERTScorer {
             "distilbert" => ModelType::DistilBert,
             "roberta" => ModelType::Roberta,
             "deberta" => ModelType::Deberta,
-            _ => return Err(PyValueError::new_err(format!("Unknown model type: {}", model_type))),
+            _ => {
+                return Err(PyValueError::new_err(format!(
+                    "Unknown model type: {}",
+                    model_type
+                )))
+            }
         };
-        
+
         let device = match device {
             Some("cuda") => Device::cuda_if_available(),
             Some("cpu") => Device::Cpu,
             Some(d) if d.starts_with("cuda:") => {
-                let device_id = d[5..].parse::<usize>()
+                let device_id = d[5..]
+                    .parse::<usize>()
                     .map_err(|_| PyValueError::new_err("Invalid CUDA device ID"))?;
                 Device::Cuda(device_id)
             }
             None => Device::cuda_if_available(),
-            _ => return Err(PyValueError::new_err(format!("Unknown device: {:?}", device))),
+            _ => {
+                return Err(PyValueError::new_err(format!(
+                    "Unknown device: {:?}",
+                    device
+                )))
+            }
         };
-        
+
         let config = RustBERTScorerConfig {
             model_type,
             model_name: model_name.to_string(),
@@ -118,28 +127,38 @@ impl BERTScorer {
             rescale_with_baseline,
             custom_baseline: None,
         };
-        
+
         let inner = RustBERTScorer::new(config)
             .map_err(|e| PyValueError::new_err(format!("Failed to create BERTScorer: {}", e)))?;
-        
+
         Ok(Self { inner })
     }
-    
+
     /// Score candidate sentences against reference sentences.
-    fn score(&self, candidates: Vec<String>, references: Vec<String>) -> PyResult<Vec<PyBERTScoreResult>> {
-        let results = self.inner
+    fn score(
+        &self,
+        candidates: Vec<String>,
+        references: Vec<String>,
+    ) -> PyResult<Vec<PyBERTScoreResult>> {
+        let results = self
+            .inner
             .score(&candidates, &references)
             .map_err(|e| PyValueError::new_err(format!("Scoring failed: {}", e)))?;
-        
+
         Ok(results.into_iter().map(PyBERTScoreResult::from).collect())
     }
-    
+
     /// Score candidates against multiple references per candidate.
-    fn score_multi_refs(&self, candidates: Vec<String>, references: Vec<Vec<String>>) -> PyResult<Vec<PyBERTScoreResult>> {
-        let results = self.inner
+    fn score_multi_refs(
+        &self,
+        candidates: Vec<String>,
+        references: Vec<Vec<String>>,
+    ) -> PyResult<Vec<PyBERTScoreResult>> {
+        let results = self
+            .inner
             .score_multi_refs(&candidates, &references)
             .map_err(|e| PyValueError::new_err(format!("Multi-ref scoring failed: {}", e)))?;
-        
+
         Ok(results.into_iter().map(PyBERTScoreResult::from).collect())
     }
 }
@@ -165,7 +184,7 @@ fn compute_bertscore_from_embeddings<'py>(
 ) -> PyResult<PyBERTScoreResult> {
     let cand_shape = candidate_embeddings.shape();
     let ref_shape = reference_embeddings.shape();
-    
+
     // Convert numpy arrays to tensors
     let cand_emb = unsafe {
         Tensor::from_blob(
@@ -176,7 +195,7 @@ fn compute_bertscore_from_embeddings<'py>(
             Device::Cpu,
         )
     };
-    
+
     let ref_emb = unsafe {
         Tensor::from_blob(
             reference_embeddings.as_ptr(),
@@ -186,7 +205,7 @@ fn compute_bertscore_from_embeddings<'py>(
             Device::Cpu,
         )
     };
-    
+
     // Handle masks
     let cand_mask = match candidate_mask {
         Some(mask) => unsafe {
@@ -200,7 +219,7 @@ fn compute_bertscore_from_embeddings<'py>(
         },
         None => Tensor::ones(&[cand_shape[0] as i64], (tch::Kind::Float, Device::Cpu)),
     };
-    
+
     let ref_mask = match reference_mask {
         Some(mask) => unsafe {
             Tensor::from_blob(
@@ -213,7 +232,7 @@ fn compute_bertscore_from_embeddings<'py>(
         },
         None => Tensor::ones(&[ref_shape[0] as i64], (tch::Kind::Float, Device::Cpu)),
     };
-    
+
     // Handle IDF weights
     let idf_weights = match (candidate_idf_weights, reference_idf_weights) {
         (Some(cand_idf), Some(ref_idf)) => {
@@ -236,13 +255,13 @@ fn compute_bertscore_from_embeddings<'py>(
                 )
             };
             Some((&cand_tensor, &ref_tensor))
-        },
+        }
         _ => None,
     };
-    
+
     let result = compute_bertscore(&cand_emb, &ref_emb, &cand_mask, &ref_mask, idf_weights)
         .map_err(|e| PyValueError::new_err(format!("BERTScore computation failed: {}", e)))?;
-    
+
     Ok(PyBERTScoreResult::from(result))
 }
 
@@ -260,7 +279,7 @@ impl PyBaselineManager {
             inner: BaselineManager::new(),
         }
     }
-    
+
     /// Create a baseline manager with default baselines.
     #[staticmethod]
     fn with_defaults() -> Self {
@@ -268,21 +287,31 @@ impl PyBaselineManager {
             inner: BaselineManager::with_defaults(),
         }
     }
-    
+
     /// Add a baseline for a model and language.
     fn add_baseline(&mut self, model: &str, language: &str, precision: f32, recall: f32, f1: f32) {
-        self.inner.add_baseline(model, language, BaselineScores::new(precision, recall, f1));
+        self.inner
+            .add_baseline(model, language, BaselineScores::new(precision, recall, f1));
     }
-    
+
     /// Load baselines from a TSV file.
     fn load_from_file(&mut self, path: &str) -> PyResult<()> {
-        self.inner.load_from_file(path)
+        self.inner
+            .load_from_file(path)
             .map_err(|e| PyValueError::new_err(format!("Failed to load baselines: {}", e)))
     }
-    
+
     /// Rescale scores using baseline.
-    fn rescale_scores(&self, model: &str, language: &str, precision: f32, recall: f32, f1: f32) -> Option<(f32, f32, f32)> {
-        self.inner.rescale_scores(model, language, precision, recall, f1)
+    fn rescale_scores(
+        &self,
+        model: &str,
+        language: &str,
+        precision: f32,
+        recall: f32,
+        f1: f32,
+    ) -> Option<(f32, f32, f32)> {
+        self.inner
+            .rescale_scores(model, language, precision, recall, f1)
     }
 }
 
