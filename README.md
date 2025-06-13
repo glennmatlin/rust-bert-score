@@ -20,7 +20,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-rust-bert-score = "0.1.0"
+rust-bert-score = "0.2.0"
 ```
 
 **Note**: This crate requires PyTorch. Make sure you have libtorch installed on your system.
@@ -244,6 +244,44 @@ bert-score similarity --help
 ```bash
 cargo doc --open
 ```
+
+## Project Structure
+
+This repository is organized as follows:
+
+```
+rust-bert-score/
+├── src/                        # Main Rust library source
+│   ├── core/                   # Core BERTScore implementation
+│   ├── cli/                    # Command-line interface
+│   ├── python/                 # PyO3 Python bindings (optional)
+│   └── bin/                    # CLI binary entry point
+├── examples/                   # Usage examples and demos
+│   └── demo.rs                 # Comprehensive feature demonstration
+├── benches/                    # Performance benchmarks (criterion)
+│   └── bench.rs                # CPU/GPU performance tests
+├── tests/                      # Integration tests
+│   ├── integration_test.rs     # Basic integration tests
+│   └── integration_tests_full.rs # Comprehensive test suite
+├── python/                     # Python package distribution
+│   ├── rust_bert_score/        # Python API wrapper
+│   └── test_basic.py           # Python bindings tests
+├── python-benchmark/           # Validation environment
+│   ├── scripts/                # Python/Rust comparison scripts
+│   ├── data/                   # Test datasets
+│   └── reports/                # Validation reports
+└── .claude/                    # Project documentation and context
+```
+
+### Directory Purposes
+
+- **`src/`**: Core Rust implementation with modular architecture
+- **`examples/`**: Educational demos showing library features
+- **`benches/`**: Performance testing and optimization
+- **`tests/`**: Correctness validation and regression testing
+- **`python/`**: Python distribution package (via maturin)
+- **`python-benchmark/`**: Comprehensive validation against Python bert-score
+- **`.claude/`**: Project documentation and development context
 
 ## Contributing
 

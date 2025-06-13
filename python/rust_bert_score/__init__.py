@@ -12,7 +12,7 @@ except ImportError as e:
         "Make sure the package is properly installed with: pip install rust-bert-score"
     ) from e
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 # Re-export main classes and functions
 BERTScorer = _rust.BERTScorer
