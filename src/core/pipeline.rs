@@ -1,16 +1,16 @@
 //! High-level pipeline assembling tokenizer, model, and scoring.
 
-use crate::{
+use crate::core::{
     baseline::{BaselineManager, BaselineScores},
     idf::compute_idf_weights,
     model::Model,
-    similarity::{BERTScoreResult, compute_bertscore, create_scoring_mask},
-    tokenizer::Tokenizer,
-    Result,
+    score::{compute_bertscore, create_scoring_mask, BERTScoreResult},
+    tokenizer::{Tokenizer, TokenizerArgs},
 };
+use crate::Result;
 use rust_bert::pipelines::common::ModelType;
 use rust_tokenizers::tokenizer::TruncationStrategy;
-use std::collections::HashSet;
+use std::{collections::HashSet, path::PathBuf};
 use tch::{Device, Tensor};
 
 /// Configuration for BERTScorer.
@@ -23,9 +23,9 @@ pub struct BERTScorerConfig {
     /// Language code for baseline lookup (e.g., "en", "zh")
     pub language: String,
     /// Path to vocabulary file
-    pub vocab_path: String,
+    pub vocab_path: PathBuf,
     /// Path to merges file (for BPE tokenizers)
-    pub merges_path: Option<String>,
+    pub merges_path: Option<PathBuf>,
     /// Whether to lowercase input text
     pub lower_case: bool,
     /// Device to run on (CPU or CUDA)
@@ -48,12 +48,12 @@ impl Default for BERTScorerConfig {
     fn default() -> Self {
         Self {
             model_type: ModelType::Roberta,
-            model_name: "roberta-large".to_string(),
-            language: "en".to_string(),
-            vocab_path: String::new(),
+            model_name: "roberta-large".into(),
+            language: "en".into(),
+            vocab_path: PathBuf::default(),
             merges_path: None,
             lower_case: false,
-            device: Device::cuda_if_available(),
+            device: Device::Cpu,
             num_layers: None,
             max_length: 512,
             batch_size: 64,
@@ -82,27 +82,32 @@ impl BERTScorer {
     /// Creates a new BERTScorer instance.
     pub fn new(config: BERTScorerConfig) -> Result<Self> {
         // Initialize tokenizer
+
+        let tokenizer_args : TokenizerArgs = TokenizerArgs {
+            model: config.model_type,
+            vocab_path: config.vocab_path.clone(),
+            merges_path: config.merges_path.clone(),
+            lower_case: config.lower_case,
+            strip_accents: None, // Default behavior
+            add_prefix_space: None, // Default behavior
+            max_len: config.max_length,
+            truncation_strategy: TruncationStrategy::LongestFirst,
+            stride: 0, // No stride for single sentences
+        };
+
         let tokenizer = Tokenizer::new(
-            config.model_type,
-            &config.vocab_path,
-            config.merges_path.as_ref(),
-            config.lower_case,
-            None, // strip_accents
-            None, // add_prefix_space
-            config.max_length,
-            TruncationStrategy::LongestFirst,
-            0, // stride
+            tokenizer_args
         )?;
-        
+
         // Initialize model
         let model = Model::new(config.model_type, config.device)?;
-        
+
         // Initialize baseline manager
         let mut baseline_manager = BaselineManager::with_defaults();
         if let Some(baseline) = &config.custom_baseline {
             baseline_manager.add_baseline(&config.model_name, &config.language, *baseline);
         }
-        
+
         // Identify special token IDs
         let mut special_token_ids = HashSet::new();
         // CLS token is typically BOS in BERT models
@@ -115,7 +120,7 @@ impl BERTScorer {
         if let Some(pad_id) = tokenizer.tokenizer.get_pad_id() {
             special_token_ids.insert(pad_id);
         }
-        
+
         Ok(Self {
             tokenizer,
             model,
@@ -124,7 +129,7 @@ impl BERTScorer {
             special_token_ids,
         })
     }
-    
+
     /// Scores a batch of candidate-reference pairs.
     ///
     /// # Arguments
@@ -145,23 +150,23 @@ impl BERTScorer {
                 references.len()
             ));
         }
-        
+
         let mut all_results = Vec::with_capacity(candidates.len());
-        
+
         // Process in batches
         for batch_start in (0..candidates.len()).step_by(self.config.batch_size) {
             let batch_end = (batch_start + self.config.batch_size).min(candidates.len());
             let batch_candidates = &candidates[batch_start..batch_end];
             let batch_references = &references[batch_start..batch_end];
-            
+
             // Process batch
             let batch_results = self.score_batch(batch_candidates, batch_references)?;
             all_results.extend(batch_results);
         }
-        
+
         Ok(all_results)
     }
-    
+
     /// Scores a single batch of candidate-reference pairs.
     fn score_batch<S: AsRef<str> + Send + Sync>(
         &self,
@@ -171,53 +176,53 @@ impl BERTScorer {
         // Tokenize candidates and references
         let cand_encoding = self.tokenizer.encode(candidates, self.config.device);
         let ref_encoding = self.tokenizer.encode(references, self.config.device);
-        
+
         // Get embeddings from model
         let cand_hidden_states = self.model.forward(
             &cand_encoding.input_ids,
             &cand_encoding.attention_mask,
             Some(&cand_encoding.token_type_ids),
         );
-        
+
         let ref_hidden_states = self.model.forward(
             &ref_encoding.input_ids,
             &ref_encoding.attention_mask,
             Some(&ref_encoding.token_type_ids),
         );
-        
+
         // Select layer
         let layer_idx = self.get_layer_index(&cand_hidden_states)?;
         let cand_embeddings = &cand_hidden_states[layer_idx];
         let ref_embeddings = &ref_hidden_states[layer_idx];
-        
+
         // Compute IDF weights if needed
         let idf_weights = if self.config.use_idf {
             Some(compute_idf_weights(
                 &ref_encoding.token_ids,
                 &cand_encoding.token_ids,
                 &self.special_token_ids,
-                self.config.device,
+                Some(self.config.device),
             )?)
         } else {
             None
         };
-        
+
         // Score each pair
         let mut results = Vec::with_capacity(candidates.len());
-        
+
         for i in 0..candidates.len() {
             // Extract embeddings for this pair
             let cand_emb = cand_embeddings.get(i as i64);
             let ref_emb = ref_embeddings.get(i as i64);
-            
+
             // Get actual lengths (before padding)
             let cand_len = cand_encoding.lengths[i];
             let ref_len = ref_encoding.lengths[i];
-            
+
             // Slice to actual length
             let cand_emb = cand_emb.slice(0, 0, cand_len as i64, 1);
             let ref_emb = ref_emb.slice(0, 0, ref_len as i64, 1);
-            
+
             // Create masks excluding special tokens
             let cand_mask = create_scoring_mask(
                 &cand_encoding.token_ids[i],
@@ -229,7 +234,7 @@ impl BERTScorer {
                 &self.special_token_ids.iter().copied().collect::<Vec<_>>(),
                 ref_len,
             );
-            
+
             // Get IDF weights for this pair if using IDF
             let pair_idf_weights = if let Some((cand_weights, ref_weights)) = &idf_weights {
                 Some((
@@ -239,7 +244,12 @@ impl BERTScorer {
             } else {
                 None
             };
-            
+
+            let cand_emb = cand_emb.to_device(self.config.device);
+            let ref_emb = ref_emb.to_device(self.config.device);
+            let cand_mask = cand_mask.to_device(self.config.device);
+            let ref_mask = ref_mask.to_device(self.config.device);
+
             // Compute BERTScore
             let mut result = compute_bertscore(
                 &cand_emb,
@@ -247,8 +257,8 @@ impl BERTScorer {
                 &cand_mask,
                 &ref_mask,
                 pair_idf_weights.as_ref().map(|(c, r)| (c, r)),
-            )?;
-            
+            );
+
             // Apply baseline rescaling if configured
             if self.config.rescale_with_baseline {
                 if let Some((p, r, f1)) = self.baseline_manager.rescale_scores(
@@ -263,17 +273,17 @@ impl BERTScorer {
                     result.f1 = f1;
                 }
             }
-            
+
             results.push(result);
         }
-        
+
         Ok(results)
     }
-    
+
     /// Gets the layer index to use for embeddings.
     fn get_layer_index(&self, hidden_states: &[Tensor]) -> Result<usize> {
         let num_layers = hidden_states.len();
-        
+
         match self.config.num_layers {
             Some(n) if n >= 0 => {
                 let idx = n as usize;
@@ -291,10 +301,7 @@ impl BERTScorer {
                 // Negative indexing
                 let idx = (num_layers as i32 + n) as usize;
                 if idx >= num_layers {
-                    Err(anyhow::anyhow!(
-                        "Invalid layer index {}",
-                        n
-                    ))
+                    Err(anyhow::anyhow!("Invalid layer index {}", n))
                 } else {
                     Ok(idx)
                 }
@@ -305,7 +312,7 @@ impl BERTScorer {
             }
         }
     }
-    
+
     /// Scores with multiple references per candidate.
     ///
     /// # Arguments
@@ -326,9 +333,9 @@ impl BERTScorer {
                 references.len()
             ));
         }
-        
+
         let mut best_results = Vec::with_capacity(candidates.len());
-        
+
         for (i, candidate) in candidates.iter().enumerate() {
             let refs = &references[i];
             if refs.is_empty() {
@@ -337,14 +344,14 @@ impl BERTScorer {
                     i
                 ));
             }
-            
+
             // Score against each reference
             let mut best_result: Option<BERTScoreResult> = None;
-            
+
             for reference in refs {
                 let results = self.score(&[candidate], &[reference])?;
                 let result = results.into_iter().next().unwrap();
-                
+
                 // Keep the result with highest F1
                 match &best_result {
                     None => best_result = Some(result),
@@ -352,10 +359,10 @@ impl BERTScorer {
                     _ => {}
                 }
             }
-            
+
             best_results.push(best_result.unwrap());
         }
-        
+
         Ok(best_results)
     }
 }
@@ -372,63 +379,63 @@ impl BERTScorerBuilder {
             config: BERTScorerConfig::default(),
         }
     }
-    
+
     /// Sets the model type and name.
     pub fn model(mut self, model_type: ModelType, model_name: &str) -> Self {
         self.config.model_type = model_type;
         self.config.model_name = model_name.to_string();
         self
     }
-    
+
     /// Sets the language.
     pub fn language(mut self, lang: &str) -> Self {
         self.config.language = lang.to_string();
         self
     }
-    
-    /// Sets the vocabulary and merges paths.
-    pub fn vocab_paths(mut self, vocab: &str, merges: Option<&str>) -> Self {
-        self.config.vocab_path = vocab.to_string();
-        self.config.merges_path = merges.map(|s| s.to_string());
+
+    // /// Sets the vocabulary and merges paths.
+    pub fn vocab_paths(mut self, vocab: PathBuf, merges: Option<PathBuf>) -> Self {
+        self.config.vocab_path = vocab;
+        self.config.merges_path = merges;
         self
     }
-    
+
     /// Sets the device.
     pub fn device(mut self, device: Device) -> Self {
         self.config.device = device;
         self
     }
-    
+
     /// Sets the layer to extract embeddings from.
     pub fn num_layers(mut self, layers: i32) -> Self {
         self.config.num_layers = Some(layers);
         self
     }
-    
+
     /// Sets the batch size.
     pub fn batch_size(mut self, size: usize) -> Self {
         self.config.batch_size = size;
         self
     }
-    
+
     /// Enables IDF weighting.
     pub fn use_idf(mut self, use_idf: bool) -> Self {
         self.config.use_idf = use_idf;
         self
     }
-    
+
     /// Enables baseline rescaling.
     pub fn rescale_with_baseline(mut self, rescale: bool) -> Self {
         self.config.rescale_with_baseline = rescale;
         self
     }
-    
+
     /// Sets custom baseline scores.
     pub fn custom_baseline(mut self, baseline: BaselineScores) -> Self {
         self.config.custom_baseline = Some(baseline);
         self
     }
-    
+
     /// Builds the BERTScorer.
     pub fn build(self) -> Result<BERTScorer> {
         BERTScorer::new(self.config)
@@ -444,7 +451,7 @@ impl Default for BERTScorerBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::baseline::BaselineScores;
+    use crate::core::baseline::BaselineScores;
     use rust_bert::pipelines::common::ModelType;
     use tch::Device;
 
@@ -467,7 +474,7 @@ mod tests {
         let builder = BERTScorerBuilder::new()
             .model(ModelType::Bert, "bert-base-uncased")
             .language("zh")
-            .vocab_paths("/path/to/vocab", Some("/path/to/merges"))
+            .vocab_paths(std::path::PathBuf::from("/path/to/vocab"), Some(std::path::PathBuf::from("/path/to/merges")))
             .device(Device::Cpu)
             .num_layers(-2)
             .batch_size(32)
@@ -480,8 +487,8 @@ mod tests {
         assert_eq!(config.model_type, ModelType::Bert);
         assert_eq!(config.model_name, "bert-base-uncased");
         assert_eq!(config.language, "zh");
-        assert_eq!(config.vocab_path, "/path/to/vocab");
-        assert_eq!(config.merges_path, Some("/path/to/merges".to_string()));
+        assert_eq!(config.vocab_path, std::path::PathBuf::from("/path/to/vocab"));
+        assert_eq!(config.merges_path, Some(std::path::PathBuf::from("/path/to/merges")));
         assert_eq!(config.device, Device::Cpu);
         assert_eq!(config.num_layers, Some(-2));
         assert_eq!(config.batch_size, 32);
@@ -579,6 +586,7 @@ mod tests {
     #[test]
     fn test_multi_ref_selection() {
         // Test logic for selecting best result from multiple references
+        use crate::core::score::BERTScoreResult;
         let results = vec![
             BERTScoreResult { precision: 0.8, recall: 0.9, f1: 0.85 },
             BERTScoreResult { precision: 0.9, recall: 0.85, f1: 0.87 },

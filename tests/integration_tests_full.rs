@@ -1,10 +1,10 @@
 //! Comprehensive integration tests for rust-bert-score
 
 use rust_bert_score::{
-    baseline::{BaselineManager, BaselineScores},
-    idf::IdfDict,
-    pipeline::{BERTScorerBuilder, BERTScorerConfig},
-    similarity::{BERTScoreResult, compute_bertscore, create_scoring_mask},
+    core::baseline::{BaselineManager, BaselineScores},
+    core::idf::IdfDict,
+    core::pipeline::{BERTScorerBuilder, BERTScorerConfig},
+    core::score::{BERTScoreResult, compute_bertscore, create_scoring_mask},
 };
 use rust_bert::pipelines::common::ModelType;
 use std::collections::HashSet;
@@ -40,7 +40,7 @@ fn test_bertscore_computation_pipeline() {
         &candidate_mask,
         &reference_mask,
         None,
-    ).unwrap();
+    );
     
     // Verify results are reasonable
     assert!(result.precision > 0.0 && result.precision <= 1.0);

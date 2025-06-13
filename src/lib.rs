@@ -1,18 +1,19 @@
 //! Rust implementation of BERTScore.
 
-pub mod tokenizer;
-pub mod model;
-pub mod similarity;
-pub mod idf;
-pub mod baseline;
-pub mod pipeline;
+pub mod cli;
+pub mod core;
 
 #[cfg(feature = "python")]
 pub mod python;
 
 // Re-export main types
-pub use pipeline::{BERTScorer, BERTScorerBuilder, BERTScorerConfig};
-pub use similarity::BERTScoreResult;
+pub use core::{BERTScorer, BERTScorerBuilder, BERTScorerConfig, BERTScoreResult};
+
+// Re-export modules for backward compatibility
+pub use core::baseline;
+pub use core::idf;
+pub use core::pipeline;
+pub use core::score as similarity;
 
 /// Convenient alias for a result with a boxed error.
 pub type Result<T> = anyhow::Result<T>;
