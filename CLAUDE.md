@@ -245,6 +245,18 @@ rust-bert-score/
 └── build.sh                   # Build script
 ```
 
+## Additional Context
+
+@.claude/VALIDATION_SUMMARY.md
+@.claude/REQUIREMENTS_VERIFICATION.md
+@.claude/PYTHON.md
+@.claude/PLAN.md
+@.claude/AGENT.md
+@.claude/SUMMARY.md
+@.claude/TESTING_PLAN.md
+@.claude/PLAN_TEST_VERIFICATION.md
+@.claude/EXPERIMENTS.md
+
 ## Memories & Guidelines
 
 - Never mention AI tools or Claude Code or Anthropic in your git commit messages
