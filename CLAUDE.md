@@ -193,3 +193,7 @@ rust-bert-score/
 ├── pyproject.toml          # Python package config
 └── build.sh                # Build script
 ```
+
+## Memories & Guidelines
+
+- Never mention AI tools or Claude Code or Anthropic in your git commit messages

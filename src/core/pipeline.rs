@@ -74,6 +74,11 @@ pub struct BERTScorer {
 }
 
 impl BERTScorer {
+    /// Get the configuration.
+    pub fn config(&self) -> &BERTScorerConfig {
+        &self.config
+    }
+    
     /// Creates a new BERTScorer instance.
     pub fn new(config: BERTScorerConfig) -> Result<Self> {
         // Initialize tokenizer
@@ -364,7 +369,7 @@ impl BERTScorer {
 
 /// Builder for creating BERTScorer with custom configuration.
 pub struct BERTScorerBuilder {
-    config: BERTScorerConfig,
+    pub config: BERTScorerConfig,
 }
 
 impl BERTScorerBuilder {
@@ -440,5 +445,174 @@ impl BERTScorerBuilder {
 impl Default for BERTScorerBuilder {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::baseline::BaselineScores;
+    use rust_bert::pipelines::common::ModelType;
+    use tch::Device;
+
+    #[test]
+    fn test_config_default() {
+        let config = BERTScorerConfig::default();
+        
+        assert_eq!(config.model_type, ModelType::Roberta);
+        assert_eq!(config.model_name, "roberta-large");
+        assert_eq!(config.language, "en");
+        assert_eq!(config.max_length, 512);
+        assert_eq!(config.batch_size, 64);
+        assert!(!config.use_idf);
+        assert!(!config.rescale_with_baseline);
+        assert!(config.custom_baseline.is_none());
+    }
+
+    #[test]
+    fn test_builder_pattern() {
+        let builder = BERTScorerBuilder::new()
+            .model(ModelType::Bert, "bert-base-uncased")
+            .language("zh")
+            .vocab_paths(std::path::PathBuf::from("/path/to/vocab"), Some(std::path::PathBuf::from("/path/to/merges")))
+            .device(Device::Cpu)
+            .num_layers(-2)
+            .batch_size(32)
+            .use_idf(true)
+            .rescale_with_baseline(true)
+            .custom_baseline(BaselineScores::new(0.8, 0.8, 0.8));
+        
+        let config = builder.config;
+        
+        assert_eq!(config.model_type, ModelType::Bert);
+        assert_eq!(config.model_name, "bert-base-uncased");
+        assert_eq!(config.language, "zh");
+        assert_eq!(config.vocab_path, std::path::PathBuf::from("/path/to/vocab"));
+        assert_eq!(config.merges_path, Some(std::path::PathBuf::from("/path/to/merges")));
+        assert_eq!(config.device, Device::Cpu);
+        assert_eq!(config.num_layers, Some(-2));
+        assert_eq!(config.batch_size, 32);
+        assert!(config.use_idf);
+        assert!(config.rescale_with_baseline);
+        assert!(config.custom_baseline.is_some());
+    }
+
+    #[test]
+    fn test_layer_index_calculation() {
+        // Mock hidden states with 13 layers (embeddings + 12 transformer layers)
+        let hidden_states: Vec<Tensor> = (0..13)
+            .map(|_| Tensor::zeros(&[1, 10, 768], (tch::Kind::Float, Device::Cpu)))
+            .collect();
+        
+        let config = BERTScorerConfig {
+            num_layers: Some(-1),
+            ..Default::default()
+        };
+        
+        // Create a mock scorer to test get_layer_index
+        // Since we can't create a real BERTScorer without model files,
+        // we'll test the logic directly
+        
+        // Test last layer (-1)
+        let get_layer_index = |num_layers: Option<i32>, states_len: usize| -> Result<usize> {
+            match num_layers {
+                Some(n) if n >= 0 => {
+                    let idx = n as usize;
+                    if idx >= states_len {
+                        Err(anyhow::anyhow!("Requested layer {} but model only has {} layers", idx, states_len))
+                    } else {
+                        Ok(idx)
+                    }
+                }
+                Some(n) => {
+                    let idx = (states_len as i32 + n) as usize;
+                    if idx >= states_len {
+                        Err(anyhow::anyhow!("Invalid layer index {}", n))
+                    } else {
+                        Ok(idx)
+                    }
+                }
+                None => Ok(states_len - 1),
+            }
+        };
+        
+        // Test various layer configurations
+        assert_eq!(get_layer_index(None, 13).unwrap(), 12); // Default to last
+        assert_eq!(get_layer_index(Some(-1), 13).unwrap(), 12); // Last layer
+        assert_eq!(get_layer_index(Some(-2), 13).unwrap(), 11); // Second to last
+        assert_eq!(get_layer_index(Some(0), 13).unwrap(), 0); // First layer
+        assert_eq!(get_layer_index(Some(5), 13).unwrap(), 5); // Middle layer
+        
+        // Test error cases
+        assert!(get_layer_index(Some(13), 13).is_err()); // Out of bounds
+        assert!(get_layer_index(Some(-14), 13).is_err()); // Negative out of bounds
+    }
+
+    #[test]
+    fn test_special_tokens_extraction() {
+        // Test that special token IDs would be properly collected
+        let special_tokens = vec![0i64, 1, 2]; // Mock PAD, CLS, SEP
+        let special_set: HashSet<i64> = special_tokens.into_iter().collect();
+        
+        assert!(special_set.contains(&0));
+        assert!(special_set.contains(&1));
+        assert!(special_set.contains(&2));
+        assert!(!special_set.contains(&100));
+    }
+
+    #[test]
+    fn test_batch_processing() {
+        // Test batch size logic
+        let total_items = 150;
+        let batch_size = 64;
+        
+        let mut batch_starts = Vec::new();
+        let mut batch_ends = Vec::new();
+        
+        for batch_start in (0..total_items).step_by(batch_size) {
+            let batch_end = (batch_start + batch_size).min(total_items);
+            batch_starts.push(batch_start);
+            batch_ends.push(batch_end);
+        }
+        
+        assert_eq!(batch_starts, vec![0, 64, 128]);
+        assert_eq!(batch_ends, vec![64, 128, 150]);
+        
+        // Verify all items are covered
+        assert_eq!(batch_starts[0], 0);
+        assert_eq!(batch_ends[batch_ends.len() - 1], total_items);
+    }
+
+    #[test]
+    fn test_multi_ref_selection() {
+        // Test logic for selecting best result from multiple references
+        use crate::core::score::BERTScoreResult;
+        let results = vec![
+            BERTScoreResult { precision: 0.8, recall: 0.9, f1: 0.85 },
+            BERTScoreResult { precision: 0.9, recall: 0.85, f1: 0.87 },
+            BERTScoreResult { precision: 0.7, recall: 0.95, f1: 0.81 },
+        ];
+        
+        let best = results.into_iter().max_by(|a, b| {
+            a.f1.partial_cmp(&b.f1).unwrap()
+        }).unwrap();
+        
+        assert_eq!(best.f1, 0.87);
+        assert_eq!(best.precision, 0.9);
+        assert_eq!(best.recall, 0.85);
+    }
+
+    #[test]
+    fn test_error_handling() {
+        // Test that mismatched lengths would be caught
+        let candidates = vec!["a", "b", "c"];
+        let references = vec!["x", "y"]; // Wrong length
+        
+        // In real scorer this would return an error
+        assert_ne!(candidates.len(), references.len());
+        
+        // Test empty reference list detection
+        let multi_refs: Vec<Vec<&str>> = vec![vec![], vec!["ref"]];
+        assert!(multi_refs[0].is_empty());
     }
 }

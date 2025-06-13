@@ -1,8 +1,8 @@
-mod baseline;
-mod idf;
+pub mod baseline;
+pub mod idf;
 mod model;
-mod pipeline;
-mod score;
+pub mod pipeline;
+pub mod score;
 mod tokenizer;
 pub mod api;
 
