@@ -196,7 +196,19 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Citation
 
-If you use this library in your research, please cite:
+If you use this library in your research, please cite this software:
+
+```bibtex
+@misc{matlin2025rustbertscore,
+  title={rust-bert-score: A High-Performance Rust Implementation of BERTScore},
+  author={Matlin, Glenn},
+  year={2025},
+  url={https://github.com/gmatlin/rust-bert-score},
+  note={Software available at \url{https://github.com/gmatlin/rust-bert-score}}
+}
+```
+
+And the original BERTScore paper:
 
 ```bibtex
 @inproceedings{zhang2020bertscore,
