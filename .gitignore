@@ -1,2 +1,36 @@
 .secrets
 /target
+
+# PyTorch C++ library (libtorch)
+/libtorch/
+libtorch/
+libtorch-*.zip
+
+# Python environments
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.log
+*.swp
+*~
+
+# Test outputs
+/reports/
+*.csv
+*.tsv
+!data/**/*.tsv
+!data/**/*.csv

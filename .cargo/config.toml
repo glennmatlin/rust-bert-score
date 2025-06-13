@@ -1,0 +1,15 @@
+[env]
+# Note: These environment variables are only used during cargo build.
+# For runtime, you still need to set LD_LIBRARY_PATH.
+# Run `source setup_env.sh` before building and running.
+
+# Uncomment and adjust the path below if you have a fixed libtorch location:
+# LIBTORCH = "/path/to/libtorch"
+
+[build]
+# Uncomment to use a specific number of parallel jobs
+# jobs = 4
+
+[profile.release-lto]
+lto = "fat"
+codegen-units = 1

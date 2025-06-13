@@ -214,9 +214,29 @@ cd rust-bert-score
 # Install Python dependencies for benchmarking
 uv sync --group benchmark
 
+# Download libtorch (required for tch crate)
+# Option 1: Use the provided script
+./scripts/download_libtorch.sh
+
+# Option 2: Download manually
+# Visit https://pytorch.org/get-started/locally/
+# Download libtorch 2.4.0 CPU version and extract to ./libtorch/
+
+# Set up environment variables
+source setup_env.sh
+
 # Build Rust CLI
 cargo build --release
 ```
+
+### Why libtorch is needed
+
+The `tch` crate provides Rust bindings to PyTorch's C++ library (libtorch). This is required for:
+- **Tensor operations**: All neural network computations use PyTorch tensors
+- **Model loading**: Loading pre-trained BERT models in PyTorch format
+- **GPU support**: CUDA operations if available
+
+The `tch` version 0.17.0 specifically requires PyTorch 2.4.0 for compatibility.
 
 ### Running Tests
 
@@ -240,8 +260,9 @@ uv run --group benchmark python scripts/validate_pipeline.py
 # Build CLI binary
 cargo build --release --bin bert-score
 
-# Test CLI functionality (requires PyTorch setup)
-export LD_LIBRARY_PATH=.venv/lib/python3.11/site-packages/torch/lib:$LD_LIBRARY_PATH
+# Test CLI functionality (requires libtorch)
+export LIBTORCH=$PWD/libtorch
+export LD_LIBRARY_PATH=$LIBTORCH/lib:$LD_LIBRARY_PATH
 ./target/release/bert-score score --help
 
 # Run with TSV input and CSV output
