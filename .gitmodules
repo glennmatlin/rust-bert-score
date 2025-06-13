@@ -1,0 +1,3 @@
+[submodule "python-bert-score"]
+	path = python-bert-score
+	url = https://github.com/Tiiiger/bert_score.git

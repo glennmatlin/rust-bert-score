@@ -121,52 +121,79 @@ fn compute_scores(
     candidate_idf: Option<&Tensor>,
     reference_idf: Option<&Tensor>,
 ) -> (f32, f32) {
+    // Apply L1 normalization to IDF weights if provided (to match Python BERTScore)
+    let (normalized_cand_idf, normalized_ref_idf) = if let (Some(cand_idf), Some(ref_idf)) = (candidate_idf, reference_idf) {
+        // Mask IDF weights for valid tokens only
+        let masked_cand_idf = cand_idf * candidate_mask;
+        let masked_ref_idf = ref_idf * reference_mask;
+        
+        // Sum of IDF weights for normalization
+        let cand_idf_sum = masked_cand_idf.sum(tch::Kind::Float);
+        let ref_idf_sum = masked_ref_idf.sum(tch::Kind::Float);
+        
+        // L1 normalize: divide by sum to create probability distribution
+        let norm_cand_idf = if cand_idf_sum.double_value(&[]) > 0.0 {
+            &masked_cand_idf / &cand_idf_sum
+        } else {
+            masked_cand_idf
+        };
+        
+        let norm_ref_idf = if ref_idf_sum.double_value(&[]) > 0.0 {
+            &masked_ref_idf / &ref_idf_sum
+        } else {
+            masked_ref_idf
+        };
+        
+        (Some(norm_cand_idf), Some(norm_ref_idf))
+    } else {
+        // No IDF weights - use uniform weights (1/n for each valid token)
+        let cand_count = candidate_mask.sum(tch::Kind::Float);
+        let ref_count = reference_mask.sum(tch::Kind::Float);
+        
+        let uniform_cand = if cand_count.double_value(&[]) > 0.0 {
+            candidate_mask / &cand_count
+        } else {
+            candidate_mask.shallow_clone()
+        };
+        
+        let uniform_ref = if ref_count.double_value(&[]) > 0.0 {
+            reference_mask / &ref_count
+        } else {
+            reference_mask.shallow_clone()
+        };
+        
+        (Some(uniform_cand), Some(uniform_ref))
+    };
+
     // Precision: for each candidate token, find max similarity with any reference token
-
-    let max_cand_sims = match candidate_idf {
-        Some(idf) => masked_similarity.max_dim(1, false).0 * idf,
-        None => masked_similarity.max_dim(1, false).0,
-    };
-
-    // Here simple multiplication does not apply since we are doing -inf * 0 -> NaN, so we use where_self instead
-    let masked_candidate_sims = max_cand_sims.where_self(
-        &candidate_mask.eq(1),
-        &Tensor::zeros_like(&max_cand_sims).to_device(candidate_mask.device()),
-    );
-
-    let cand_normalizer = match candidate_idf {
-        Some(idf) => idf * candidate_mask, // Sum of IDF-weighted candidate tokens
-        None => candidate_mask.shallow_clone(), // Number of valid candidate tokens
-    }
-    .sum(tch::Kind::Float);
-
-    let max_ref_sims = match reference_idf {
-        Some(idf) => masked_similarity.max_dim(0, false).0 * idf,
-        None => masked_similarity.max_dim(0, false).0,
-    };
-
-    let masked_reference_sims = max_ref_sims.where_self(
-        &reference_mask.eq(1),
-        &Tensor::zeros_like(&max_ref_sims).to_device(reference_mask.device()),
-    );
-
-    let ref_normalizer = match reference_idf {
-        Some(idf) => idf * reference_mask, // Sum of IDF-weighted reference tokens
-        None => reference_mask.shallow_clone(), // Number of valid reference tokens
-    }
-    .sum(tch::Kind::Float);
-
-    let precision = if cand_normalizer.double_value(&[]) > 0.0 {
-        (masked_candidate_sims.sum(tch::Kind::Float) / &cand_normalizer).double_value(&[]) as f32
+    let max_cand_sims = masked_similarity.max_dim(1, false).0;
+    
+    // Apply normalized weights and mask
+    let weighted_cand_sims = if let Some(ref weights) = &normalized_cand_idf {
+        (&max_cand_sims * weights).where_self(
+            &candidate_mask.eq(1),
+            &Tensor::zeros_like(&max_cand_sims).to_device(candidate_mask.device()),
+        )
     } else {
-        0.0
+        max_cand_sims
+    };
+    
+    // Recall: for each reference token, find max similarity with any candidate token
+    let max_ref_sims = masked_similarity.max_dim(0, false).0;
+    
+    // Apply normalized weights and mask
+    let weighted_ref_sims = if let Some(ref weights) = &normalized_ref_idf {
+        (&max_ref_sims * weights).where_self(
+            &reference_mask.eq(1),
+            &Tensor::zeros_like(&max_ref_sims).to_device(reference_mask.device()),
+        )
+    } else {
+        max_ref_sims
     };
 
-    let recall = if ref_normalizer.double_value(&[]) > 0.0 {
-        (masked_reference_sims.sum(tch::Kind::Float) / &ref_normalizer).double_value(&[]) as f32
-    } else {
-        0.0
-    };
+    // Sum weighted similarities (weights already sum to 1.0 due to L1 normalization)
+    let precision = weighted_cand_sims.sum(tch::Kind::Float).double_value(&[]) as f32;
+    let recall = weighted_ref_sims.sum(tch::Kind::Float).double_value(&[]) as f32;
 
     (precision, recall)
 }

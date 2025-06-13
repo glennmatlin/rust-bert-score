@@ -89,7 +89,10 @@ impl BERTScorer {
             merges_path: config.merges_path.clone(),
             lower_case: config.lower_case,
             strip_accents: None, // Default behavior
-            add_prefix_space: None, // Default behavior
+            add_prefix_space: match config.model_type {
+                ModelType::Roberta | ModelType::GPT2 => Some(true),
+                _ => None,
+            },
             max_len: config.max_length,
             truncation_strategy: TruncationStrategy::LongestFirst,
             stride: 0, // No stride for single sentences
@@ -195,8 +198,10 @@ impl BERTScorer {
         let cand_embeddings = &cand_hidden_states[layer_idx];
         let ref_embeddings = &ref_hidden_states[layer_idx];
 
-        // Compute IDF weights if needed
+        // Compute IDF weights
+        // Note: Python BERTScore always uses IDF weights, just with default values when IDF is disabled
         let idf_weights = if self.config.use_idf {
+            // Compute actual IDF weights from corpus
             Some(compute_idf_weights(
                 &ref_encoding.token_ids,
                 &cand_encoding.token_ids,
@@ -204,7 +209,29 @@ impl BERTScorer {
                 Some(self.config.device),
             )?)
         } else {
-            None
+            // Use default IDF weights: 1.0 for regular tokens, 0.0 for special tokens
+            let mut cand_weights = Vec::new();
+            let mut ref_weights = Vec::new();
+            
+            for i in 0..candidates.len() {
+                // Create weight vector: 1.0 for regular tokens, 0.0 for special tokens
+                let cand_weight_vec: Vec<f32> = cand_encoding.token_ids[i]
+                    .iter()
+                    .map(|&id| if self.special_token_ids.contains(&id) { 0.0 } else { 1.0 })
+                    .collect();
+                let cand_weights_tensor = Tensor::from_slice(&cand_weight_vec).to_device(self.config.device);
+                cand_weights.push(cand_weights_tensor);
+                
+                // Create default weights for reference tokens
+                let ref_weight_vec: Vec<f32> = ref_encoding.token_ids[i]
+                    .iter()
+                    .map(|&id| if self.special_token_ids.contains(&id) { 0.0 } else { 1.0 })
+                    .collect();
+                let ref_weights_tensor = Tensor::from_slice(&ref_weight_vec).to_device(self.config.device);
+                ref_weights.push(ref_weights_tensor);
+            }
+            
+            Some((cand_weights, ref_weights))
         };
 
         // Score each pair
@@ -249,21 +276,36 @@ impl BERTScorer {
             let ref_emb = ref_emb.to_device(self.config.device);
             let cand_mask = cand_mask.to_device(self.config.device);
             let ref_mask = ref_mask.to_device(self.config.device);
+            
+            // Check for empty strings (no valid tokens after masking special tokens)
+            let cand_has_tokens = cand_mask.sum(tch::Kind::Float).double_value(&[]) > 0.0;
+            let ref_has_tokens = ref_mask.sum(tch::Kind::Float).double_value(&[]) > 0.0;
 
             // Compute BERTScore
-            let mut result = compute_bertscore(
-                &cand_emb,
-                &ref_emb,
-                &cand_mask,
-                &ref_mask,
-                pair_idf_weights.as_ref().map(|(c, r)| (c, r)),
-            );
+            let mut result = if !cand_has_tokens || !ref_has_tokens {
+                // Python BERTScore returns 0.0 for empty strings
+                // This will be rescaled to negative values if baseline rescaling is enabled
+                BERTScoreResult {
+                    precision: 0.0,
+                    recall: 0.0,
+                    f1: 0.0,
+                }
+            } else {
+                compute_bertscore(
+                    &cand_emb,
+                    &ref_emb,
+                    &cand_mask,
+                    &ref_mask,
+                    pair_idf_weights.as_ref().map(|(c, r)| (c, r)),
+                )
+            };
 
             // Apply baseline rescaling if configured
             if self.config.rescale_with_baseline {
-                if let Some((p, r, f1)) = self.baseline_manager.rescale_scores(
+                if let Some((p, r, f1)) = self.baseline_manager.rescale_scores_for_layer(
                     &self.config.model_name,
                     &self.config.language,
+                    layer_idx,
                     result.precision,
                     result.recall,
                     result.f1,

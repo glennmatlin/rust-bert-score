@@ -1,7 +1,0 @@
-README.md
-pyproject.toml
-bertscore_python_benchmark.egg-info/PKG-INFO
-bertscore_python_benchmark.egg-info/SOURCES.txt
-bertscore_python_benchmark.egg-info/dependency_links.txt
-bertscore_python_benchmark.egg-info/requires.txt
-bertscore_python_benchmark.egg-info/top_level.txt

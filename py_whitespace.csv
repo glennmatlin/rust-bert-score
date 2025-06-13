@@ -1,0 +1,2 @@
+ID,candidate,reference,P_py,R_py,F1_py
+S0001,   Leading and trailing spaces   ,Leading and trailing spaces,1.0,1.0,1.0

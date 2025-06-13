@@ -1,0 +1,9 @@
+id	candidate	reference
+C000	The cat sat on the mat.	A feline was resting on the rug.
+C001	I love programming in Python.	Python programming is my passion.
+C002	The weather is beautiful today.	Today's weather is lovely.
+C003	Machine learning is fascinating.	AI and ML are interesting fields.
+C004	This is a test sentence.	This is a test sentence.
+C005		
+C006	Short	This is a much longer reference sentence with many words.
+C007	Multiple   spaces   test	Multiple spaces test

@@ -26,13 +26,26 @@
 
 ## **Phase 2: Correctness Validation - The Big Challenge** 🔬
 
-### 2.1 Analysis Phase (Research & Design) ⏳ PENDING
+### 2.1 Analysis Phase (Research & Design) ✅ COMPLETE
 - ✅ CLI Gap Analysis (DONE - documented in plan)
-- ❌ **TODO**: Data Flow Mapping
-  - [ ] Map Python `run_direct_py.py` → `reports/direct_scores_python.csv`
-  - [ ] Design Rust equivalent → `reports/direct_scores_rust.csv`
-  - [ ] Validate column compatibility between Python/Rust outputs
-  - [ ] Document expected data formats and transformations
+- ✅ **COMPLETE**: Data Flow Mapping
+  - ✅ Map Python `run_direct_py.py` → `reports/direct_scores_python.csv`
+  - ✅ Design Rust equivalent → `reports/direct_scores_rust.csv`
+  - ✅ Validate column compatibility between Python/Rust outputs
+  - ✅ Document expected data formats and transformations
+
+**Data Flow Analysis Results:**
+- **Input**: `direct_eval_pairs.tsv` (24 test pairs, tab-separated: id, candidate, reference)
+- **Python Output**: `direct_scores_python.csv` (adds P_py, R_py, F1_py columns)
+- **Rust Output**: `direct_scores_rust.csv` (must add P_rust, R_rust, F1_rust columns)
+- **Model Settings**: roberta-large, rescale_with_baseline=True, batch_size=32
+- **Validation**: max_abs_diff < 1e-4, correlation > 0.99999
+
+**CLI Enhancement Requirements:**
+- ❌ Add `--input-tsv` flag (currently only separate files)
+- ❌ Add `--output-csv` flag (currently stdout only)
+- ❌ Add `--model-name` parameter (currently hardcoded bert-base-uncased)
+- ❌ Preserve input data in output format (currently only scores)
 
 ### 2.2 CLI Enhancement Phase (Implementation) ⏳ PENDING
 - ❌ **TODO**: TSV Input Support
@@ -134,21 +147,26 @@
 
 ## **🚧 Current Blockers**
 
-1. **CRITICAL**: CLI Enhancement (Phase 2.2) - Complex implementation work needed
-2. **HIGH**: Model Loading Consistency - Must match Python bert-score exactly
-3. **MEDIUM**: Numerical Precision Tuning - May need adjustment based on results
+1. **CRITICAL**: Implementation Mismatch - Max difference 1.088 vs tolerance 0.0001
+2. **HIGH**: Baseline Rescaling - Different parameters causing negative scores  
+3. **HIGH**: Tokenization - Whitespace handling differs significantly
+4. **MEDIUM**: IDF Computation - Possible weighting differences
+5. **MEDIUM**: Model Layer Selection - May be using different layers
 
 ## **🎯 Next Actions**
 
-1. **IMMEDIATE**: Begin Phase 2.1 - Data Flow Mapping
-2. **THIS WEEK**: Complete CLI Enhancement (Phase 2.2)
-3. **NEXT WEEK**: Integration Scripts and Testing (Phase 2.3-2.4)
+1. **IMMEDIATE**: Test without baseline/IDF to isolate issues
+2. **THIS WEEK**: Debug tokenization for whitespace cases
+3. **NEXT WEEK**: Align baseline rescaling with Python
+4. **FUTURE**: Extended validation on WMT16 dataset
 
 ## **📊 Success Metrics**
 
-- ✅ **Correctness**: Max absolute difference < 1e-4 vs Python
-- ⏳ **Performance**: Measurable speedup over Python implementation
-- ⏳ **Reliability**: 100% validation pass rate in CI/CD
+- ❌ **Correctness**: Max absolute difference < 1e-4 vs Python (Current: 1.088)
+- ❌ **Correlation**: > 0.99999 (Current: 0.62-0.67)
+- ✅ **Infrastructure**: Complete validation pipeline established
+- ⏳ **Performance**: Not tested until correctness achieved
+- ⏳ **Reliability**: CI/CD pending correctness fixes
 - ⏳ **Maintainability**: Clear documentation and contributor guidelines
 
 ---

@@ -1,0 +1,25 @@
+id,candidate,reference,P_rust,R_rust,F1_rust
+S0001,The price is $29.99 (30% off)!,Cost: twenty-nine dollars and ninety-nine cents with 30 percent discount.,0.2796460271415301,0.14441844223699515,0.2124201135171761
+S0002,Alice gave Bob a book.,Bob was given a book by Alice.,0.7117611173569882,0.6094500752820469,0.6606856889630441
+S0003,Multiple   spaces   between   words,Multiple spaces between words,-0.287929323114619,0.7824647525181379,0.19331666478009632
+S0004,"Line
+break
+in
+text",Line break in text,0.16940087029856407,0.19638904617275477,0.18417524155791606
+S0005,"Hello, world!",Hello world,0.18800216846625278,0.3904866392258971,0.28844077361229037
+S0006,I like this movie.,I don't like this movie.,0.9034372586304306,0.7418375900642258,0.8218082412222623
+S0007,The transformer architecture uses self-attention mechanisms.,Self-attention is a key component of transformers.,0.3669635321281551,0.38357785698018343,0.3762664361828957
+S0008,   Leading and trailing spaces   ,Leading and trailing spaces,1.0000083743472914,0.9999946936131008,0.9999830695984463
+S0009,The weather is beautiful today.,Today's weather is lovely.,0.7227714052561407,0.723928983062502,0.723806940839694
+S0010,I love programming in Rust.,The rain in Spain stays mainly in the plain.,0.27609238560043586,0.2562899329338777,0.2673605891771958
+S0011,[Empty candidate],This is some text.,-0.06528229417692813,-0.022351713218154913,-0.04222763322000306
+S0012,OK,Okay,0.9901724427024643,0.9901776650277526,0.9901995167628884
+S0013,The cat sat on the mat.,A feline was resting on the rug.,0.6735777196227156,0.6702964228907105,0.672484009995225
+S0014,I love 🍕 and 🍔!,I enjoy pizza and hamburgers!,0.008792401197553422,0.17021155544912103,0.08970609280119117
+S0015,THIS IS UPPERCASE,this is uppercase,0.22969321082167488,0.3240152415635003,0.2776115378247678
+S0016,"def hello(): print('Hello, world!')","function hello() { console.log('Hello, world!'); }",0.5830700171247076,0.43925558863595004,0.5110050078762415
+S0017,"The development of artificial intelligence has revolutionized many industries, from healthcare to finance, enabling more efficient processes and better decision-making through advanced algorithms and machine learning techniques.",AI has transformed numerous sectors including medical care and banking by implementing sophisticated computational methods that enhance operational efficiency and improve the quality of decisions.,0.5067802716887966,0.5361175632987613,0.522205912634314
+S0018,She completed the assignment yesterday.,"Yesterday, she finished the task.",0.618361392473326,0.603766988139511,0.6117011154512713
+S0019,The weather is nice today.,Today the weather seems pleasant.,0.5520533697592448,0.6008133686123587,0.5770138082576216
+S0020,Yes.,No.,0.9673624069629867,0.9673862346658,0.9674288434102334
+S0021,The quick brown fox jumps over the lazy dog.,The quick brown fox jumps over the lazy dog.,1.0000139564876893,1.000001013682812,0.9999882366502599

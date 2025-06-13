@@ -1,0 +1,25 @@
+id,candidate,reference,P_rust,R_rust,F1_rust
+S0001,The price is $29.99 (30% off)!,Cost: twenty-nine dollars and ninety-nine cents with 30 percent discount.,0.22277592,0.02283193,0.12183625
+S0002,Alice gave Bob a book.,Bob was given a book by Alice.,0.8551355,0.7357172,0.7950323
+S0003,Multiple   spaces   between   words,Multiple spaces between words,0.26786804,0.82803977,0.532873
+S0004,"Line
+break
+in
+text",Line break in text,0.3885945,0.5695084,0.47810578
+S0005,"Hello, world!",Hello world,0.47198123,0.7831906,0.6233248
+S0006,I like this movie.,I don't like this movie.,0.9373142,0.7968714,0.8663526
+S0007,The transformer architecture uses self-attention mechanisms.,Self-attention is a key component of transformers.,0.64501214,0.5820732,0.61388236
+S0008,   Leading and trailing spaces   ,Leading and trailing spaces,1.0,1.0,1.0
+S0009,The weather is beautiful today.,Today's weather is lovely.,0.8186815,0.818664,0.818923
+S0010,I love programming in Rust.,The rain in Spain stays mainly in the plain.,0.45981064,0.34756073,0.40386352
+S0011,[Empty candidate],This is some text.,0.18491721,0.12799689,0.1574473
+S0012,OK,Okay,0.47315258,0.47310176,0.47385424
+S0013,The cat sat on the mat.,A feline was resting on the rug.,0.75777334,0.6578817,0.7077498
+S0014,I love 🍕 and 🍔!,I enjoy pizza and hamburgers!,0.29303655,0.39444244,0.34410608
+S0015,THIS IS UPPERCASE,this is uppercase,0.16637424,0.29082513,0.22883274
+S0016,"def hello(): print('Hello, world!')","function hello() { console.log('Hello, world!'); }",0.6198508,0.40075797,0.5085681
+S0017,"The development of artificial intelligence has revolutionized many industries, from healthcare to finance, enabling more efficient processes and better decision-making through advanced algorithms and machine learning techniques.",AI has transformed numerous sectors including medical care and banking by implementing sophisticated computational methods that enhance operational efficiency and improve the quality of decisions.,0.5611545,0.6132438,0.5876327
+S0018,She completed the assignment yesterday.,"Yesterday, she finished the task.",0.79976755,0.7505743,0.77536666
+S0019,The weather is nice today.,Today the weather seems pleasant.,0.76909685,0.76907456,0.76940435
+S0020,Yes.,No.,0.6241499,0.6241137,0.6246505
+S0021,The quick brown fox jumps over the lazy dog.,The quick brown fox jumps over the lazy dog.,1.0,1.0,1.0

@@ -1,9 +1,0 @@
-bert-score>=0.3.13
-torch<3.0,>=2.2
-transformers>=4.41
-pandas>=2.0
-numpy>=1.24
-scipy>=1.10
-tqdm>=4.65
-seaborn>=0.12
-matplotlib>=3.7

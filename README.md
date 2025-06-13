@@ -205,11 +205,16 @@ The Rust implementation provides significant performance improvements over Pytho
 
 ## Development
 
-### Building from Source
+### Environment Setup
 
 ```bash
 git clone https://github.com/glennmatlin/rust-bert-score
 cd rust-bert-score
+
+# Install Python dependencies for benchmarking
+uv sync --group benchmark
+
+# Build Rust CLI
 cargo build --release
 ```
 
@@ -222,21 +227,46 @@ cargo test
 # Run tests single-threaded if needed
 cargo test -- --test-threads=1
 
-# Run benchmarks
+# Run performance benchmarks
 cargo bench
+
+# Run validation pipeline (Python vs Rust)
+uv run --group benchmark python scripts/validate_pipeline.py
 ```
 
 ### CLI Development
 
 ```bash
-# Build and install CLI locally
-cargo install --path . --bin bert-score
+# Build CLI binary
+cargo build --release --bin bert-score
 
-# Test CLI functionality
-bert-score score --help
+# Test CLI functionality (requires PyTorch setup)
+export LD_LIBRARY_PATH=.venv/lib/python3.11/site-packages/torch/lib:$LD_LIBRARY_PATH
+./target/release/bert-score score --help
 
-# Run similarity computation
-bert-score similarity --help
+# Run with TSV input and CSV output
+./target/release/bert-score score \
+    --input-tsv data/benchmark/direct_eval_pairs.tsv \
+    --output-csv reports/direct_scores_rust.csv \
+    --pretrained roberta-large \
+    --model-type roberta \
+    --idf --baseline
+```
+
+### Validation Workflow
+
+```bash
+# Generate test data
+uv run --group benchmark python scripts/benchmark/make_direct_set.py
+
+# Generate Python reference scores
+uv run --group benchmark python scripts/benchmark/run_direct_py.py
+
+# Generate Rust scores (when PyTorch is configured)
+# ./target/release/bert-score score --input-tsv data/benchmark/direct_eval_pairs.tsv --output-csv reports/direct_scores_rust.csv --pretrained roberta-large --idf --baseline
+
+# Compare results
+uv run --group benchmark python scripts/benchmark/compare_direct.py
 ```
 
 ### Documentation
@@ -266,10 +296,15 @@ rust-bert-score/
 ├── python/                     # Python package distribution
 │   ├── rust_bert_score/        # Python API wrapper
 │   └── test_basic.py           # Python bindings tests
-├── python-benchmark/           # Validation environment
-│   ├── scripts/                # Python/Rust comparison scripts
-│   ├── data/                   # Test datasets
-│   └── reports/                # Validation reports
+├── scripts/                    # Development and validation scripts
+│   ├── benchmark/              # Python/Rust comparison scripts
+│   ├── validate_pipeline.py    # Master validation script
+│   └── run_direct_rust.py      # Rust CLI validation helper
+├── data/                       # Test data and benchmarks
+│   └── benchmark/              # Validation datasets
+├── reports/                    # Validation output files
+├── pyproject.toml              # Python dependencies (prod + benchmark groups)
+├── uv.lock                     # Locked dependency versions
 └── .claude/                    # Project documentation and context
 ```
 
@@ -280,8 +315,29 @@ rust-bert-score/
 - **`benchmark/`**: Performance testing and speed optimization
 - **`tests/`**: Correctness validation and regression testing
 - **`python/`**: Python distribution package (via maturin)
-- **`python-benchmark/`**: Comprehensive validation against Python bert-score
+- **`scripts/`**: Development tools and validation workflows
+- **`data/`**: Test datasets and benchmark data
+- **`reports/`**: Validation results and comparison reports
 - **`.claude/`**: Project documentation and development context
+
+### Dependency Management
+
+This project uses **uv** with dependency groups:
+
+- **Production**: `torch`, `transformers` (minimal runtime dependencies)
+- **Benchmark**: `bert-score`, `pandas`, `scipy`, `matplotlib` (validation tools)
+- **Dev**: `pytest`, `black`, `ruff`, `mypy` (development tools)
+
+```bash
+# Install production dependencies only
+uv sync
+
+# Install all dependencies including benchmark tools
+uv sync --group benchmark
+
+# Run validation with benchmark environment
+uv run --group benchmark python scripts/validate_pipeline.py
+```
 
 ## Contributing
 

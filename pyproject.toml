@@ -1,0 +1,80 @@
+[project]
+name = "rust-bert-score"
+version = "0.2.0"
+description = "High-performance Rust implementation of BERTScore with Python bindings"
+readme = "README.md"
+requires-python = ">=3.10,<3.12"
+authors = [
+    {name = "Glenn Matlin", email = "glennmatlin@users.noreply.github.com"}
+]
+license = {text = "MIT"}
+keywords = ["bert", "bertscore", "nlp", "evaluation", "rust"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers", 
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+]
+
+# Minimal production dependencies - just what's needed for CLI runtime
+dependencies = [
+    "torch>=2.2,<3.0",
+    "transformers>=4.41,<5.0",
+]
+
+[dependency-groups]
+# Development dependencies for validation and benchmarking
+benchmark = [
+    "bert-score>=0.3.13",      # Python reference implementation
+    "pandas>=2.0",             # Data manipulation
+    "numpy>=1.24",             # Numerical operations  
+    "scipy>=1.10",             # Statistical analysis
+    "tqdm>=4.65",              # Progress bars
+    "seaborn>=0.12",           # Plotting
+    "matplotlib>=3.7",         # Plotting
+]
+
+# Additional development tools
+dev = [
+    "pytest>=7.0",
+    "black>=23.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/glennmatlin/rust-bert-score"
+Repository = "https://github.com/glennmatlin/rust-bert-score"
+Issues = "https://github.com/glennmatlin/rust-bert-score/issues"
+
+# [project.scripts]
+# bert-score = "rust_bert_score.cli:main"  # Disabled temporarily
+
+# [build-system]
+# requires = ["maturin>=1.0,<2.0"]
+# build-backend = "maturin"
+
+# [tool.maturin]
+# python-source = "python"
+# module-name = "rust_bert_score._rust"
+# features = ["python"]  # Disabled temporarily due to compilation issues
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.black]
+line-length = 88
+target-version = ['py310', 'py311']
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "python/test_*.py"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"

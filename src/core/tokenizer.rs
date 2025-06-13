@@ -134,9 +134,15 @@ impl Tokenizer {
         texts: &[S],
         device: Device,
     ) -> EncodingResult {
+        // Strip whitespace from texts to match Python BERTScore behavior
+        let stripped_texts: Vec<String> = texts
+            .iter()
+            .map(|t| t.as_ref().trim().to_string())
+            .collect();
+        
         let inputs =
             self.tokenizer
-                .encode_list(texts, self.max_len, &self.truncation_strategy, self.stride);
+                .encode_list(&stripped_texts, self.max_len, &self.truncation_strategy, self.stride);
         let pad_id = self.tokenizer.get_pad_id().unwrap_or(0);
 
         let max_len = inputs.iter().map(|i| i.token_ids.len()).max().unwrap_or(0);

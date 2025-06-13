@@ -1,0 +1,8 @@
+id	candidate	reference
+WS000	   Hello world   	Hello world
+WS001	"	Hello world	"	Hello world
+WS002	Hello   world	Hello world
+WS003	"Hello
+world"	Hello world
+WS004	   	
+WS005		

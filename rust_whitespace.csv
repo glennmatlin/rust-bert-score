@@ -1,0 +1,2 @@
+id,candidate,reference,P_rust,R_rust,F1_rust
+S0001,   Leading and trailing spaces   ,Leading and trailing spaces,1.0,1.0,1.0

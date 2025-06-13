@@ -2236,17 +2236,20 @@ dependencies = [
 
 [[package]]
 name = "rust-bert-score"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
  "criterion",
+ "csv",
  "hf-hub",
  "numpy",
+ "once_cell",
  "pyo3",
  "rayon",
  "rust-bert",
  "rust_tokenizers",
+ "serde",
  "tch",
  "tokenizers 0.21.1",
 ]

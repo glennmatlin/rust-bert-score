@@ -1,0 +1,49 @@
+DIRECT-SET AGREEMENT REPORT
+==================================================
+Samples: 21
+
+
+P Score:
+  Max |Δ|     : 1.08846 ✗ FAIL
+  Mean |Δ|    : 0.219808
+  Std Dev     : 0.316066
+  Pearson r   : 0.636778
+  Spearman ρ  : 0.627273
+
+R Score:
+  Max |Δ|     : 0.734446 ✗ FAIL
+  Mean |Δ|    : 0.212075
+  Std Dev     : 0.263594
+  Pearson r   : 0.667826
+  Spearman ρ  : 0.641558
+
+F1 Score:
+  Max |Δ|     : 0.779069 ✗ FAIL
+  Mean |Δ|    : 0.213059
+  Std Dev     : 0.278735
+  Pearson r   : 0.623182
+  Spearman ρ  : 0.557143
+
+==================================================
+Overall: ✗ SOME TESTS FAIL
+Tolerance: 0.0001
+
+Worst Cases:
+
+P worst case (ID: S0008):
+  Python: 1.000001
+  Rust:   -0.088463
+  Diff:   1.088464
+  Text:      Leading and trailing spaces   ...
+
+R worst case (ID: S0012):
+  Python: 0.990178
+  Rust:   0.255732
+  Diff:   0.734446
+  Text:   OK...
+
+F1 worst case (ID: S0008):
+  Python: 1.000001
+  Rust:   0.220932
+  Diff:   0.779069
+  Text:      Leading and trailing spaces   ...

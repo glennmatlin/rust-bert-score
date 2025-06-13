@@ -261,3 +261,6 @@ rust-bert-score/
 ## Memories & Guidelines
 
 - Never mention AI tools or Claude Code or Anthropic in your git commit messages
+- Use ripgrep `rg` instead of grep `grep` when searching
+- Use `uv` any time you want to use `pip` or `python`
+```

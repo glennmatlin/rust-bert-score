@@ -4,6 +4,7 @@ use crate::Result;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use super::baseline_data;
 
 /// Baseline scores for a specific model and language combination.
 #[derive(Debug, Clone, Copy)]
@@ -62,42 +63,9 @@ impl BaselineManager {
         }
     }
 
-    /// Creates a baseline manager with some common precomputed baselines.
+    /// Creates a baseline manager with precomputed baselines from Python bert_score.
     pub fn with_defaults() -> Self {
-        let mut manager = Self::new();
-
-        // Add some common baselines (these are example values - real ones would come from files)
-        // English baselines
-        manager.add_baseline(
-            "bert-base-uncased",
-            "en",
-            BaselineScores::new(0.85, 0.85, 0.85),
-        );
-        manager.add_baseline("roberta-large", "en", BaselineScores::new(0.87, 0.87, 0.87));
-        manager.add_baseline(
-            "microsoft/deberta-xlarge-mnli",
-            "en",
-            BaselineScores::new(0.88, 0.88, 0.88),
-        );
-
-        // Multilingual baselines
-        manager.add_baseline(
-            "bert-base-multilingual-cased",
-            "zh",
-            BaselineScores::new(0.84, 0.84, 0.84),
-        );
-        manager.add_baseline(
-            "xlm-roberta-large",
-            "en",
-            BaselineScores::new(0.86, 0.86, 0.86),
-        );
-        manager.add_baseline(
-            "xlm-roberta-large",
-            "zh",
-            BaselineScores::new(0.85, 0.85, 0.85),
-        );
-
-        manager
+        Self::new()
     }
 
     /// Adds a baseline for a specific model and language.
@@ -133,6 +101,18 @@ impl BaselineManager {
         Ok(())
     }
 
+    /// Gets baseline scores from the built-in data for a specific model, language, and layer.
+    pub fn get_baseline_for_layer(&self, model: &str, language: &str, layer: usize) -> Option<BaselineScores> {
+        // First check if we have a custom baseline
+        if let Some(baseline) = self.get_baseline(model, language) {
+            return Some(*baseline);
+        }
+        
+        // Otherwise check the built-in data
+        baseline_data::get_baseline(model, language, layer)
+            .map(|(p, r, f1)| BaselineScores::new(p, r, f1))
+    }
+
     /// Rescales scores using the appropriate baseline.
     /// Returns None if no baseline is found for the model/language.
     pub fn rescale_scores(
@@ -144,6 +124,21 @@ impl BaselineManager {
         f1: f32,
     ) -> Option<(f32, f32, f32)> {
         self.get_baseline(model, language)
+            .map(|baseline| baseline.rescale(precision, recall, f1))
+    }
+    
+    /// Rescales scores using the appropriate baseline for a specific layer.
+    /// Returns None if no baseline is found for the model/language/layer.
+    pub fn rescale_scores_for_layer(
+        &self,
+        model: &str,
+        language: &str,
+        layer: usize,
+        precision: f32,
+        recall: f32,
+        f1: f32,
+    ) -> Option<(f32, f32, f32)> {
+        self.get_baseline_for_layer(model, language, layer)
             .map(|baseline| baseline.rescale(precision, recall, f1))
     }
 }
