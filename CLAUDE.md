@@ -15,8 +15,17 @@ cargo build
 # Build with optimizations
 cargo build --release
 
-# Run tests (when implemented)
+# Build with LTO optimization
+cargo build --release-lto
+
+# Run tests (comprehensive suite)
 cargo test
+
+# Run tests single-threaded (for model download tests)
+cargo test -- --test-threads=1
+
+# Run benchmarks
+cargo bench
 
 # Check code without building
 cargo check
@@ -26,58 +35,88 @@ cargo fmt
 
 # Run linter
 cargo clippy
+
+# Build and test CLI
+cargo install --path . --bin bert-score
+bert-score score --help
 ```
 
 ## Architecture
 
-The codebase follows a modular architecture with clear separation of concerns:
+The codebase follows a modular architecture with clear separation of concerns organized into the `core` module:
 
-1. **Tokenization Layer** (`tokenizer.rs`): Wraps rust-bert tokenizers to handle text preprocessing, batching, and special token management. Supports multiple model families (BERT, DistilBERT, RoBERTa, DeBERTa).
+1. **Tokenization Layer** (`core/tokenizer.rs`): Wraps rust-bert tokenizers with HuggingFace integration. Handles text preprocessing, batching, and special token management. Supports multiple model families (BERT, DistilBERT, RoBERTa, DeBERTa).
 
-2. **Model Layer** (`model.rs`): Manages pre-trained encoder loading and hidden state extraction. Uses enum-based dispatch to support different architectures while maintaining a unified interface.
+2. **Model Layer** (`core/model.rs`): Manages pre-trained encoder loading and hidden state extraction. Uses enum-based dispatch to support different architectures while maintaining a unified interface.
 
-3. **Computation Layer** (planned):
-   - `similarity.rs`: Token-level cosine similarity and greedy matching
-   - `idf.rs`: IDF weighting for token importance
-   - `baseline.rs`: Score normalization
+3. **Computation Layer**:
+   - `core/score.rs`: Token-level cosine similarity and greedy matching (formerly similarity.rs)
+   - `core/idf.rs`: IDF weighting for token importance
+   - `core/baseline.rs`: Score normalization and rescaling
 
-4. **Pipeline Layer** (`pipeline.rs`): High-level BERTScorer API that orchestrates the full scoring pipeline.
+4. **Pipeline Layer** (`core/pipeline.rs`): High-level BERTScorer API that orchestrates the full scoring pipeline.
+
+5. **CLI Layer** (`cli/`): Professional command-line interface using clap with subcommands for scoring and similarity computation.
+
+6. **API Layer** (`core/api.rs`): HuggingFace Hub integration for automatic model and vocabulary file downloading.
 
 ## Key Implementation Notes
 
 - The library uses `tch` (PyTorch bindings) for tensor operations and supports both CPU and GPU computation
 - Model weights are automatically downloaded via rust-bert's resource management system
+- HuggingFace integration enables direct model downloads via `hf-hub` crate
 - Error handling uses `anyhow::Result` throughout for consistent error propagation
-- Parallelization via `rayon` is planned for batch processing
+- Iterator-based parallel processing with `rayon` for improved performance
+- Professional CLI with `clap` provides batch processing capabilities
+- Comprehensive test coverage with both unit and integration tests
 
 ## Current Status
 
-The tokenizer and model modules are implemented. The similarity computation, IDF weighting, baseline rescaling, and pipeline integration are marked as TODO in the code. When implementing these features, follow the existing patterns:
+✅ **COMPLETE IMPLEMENTATION**: All core functionality implemented and tested. The project includes:
+- Full BERTScore pipeline with all features (IDF, baseline rescaling, multi-reference)
+- Professional CLI tool with HuggingFace integration
+- Comprehensive test suite (16+ tests covering all major components)
+- Performance optimizations including LTO compilation and iterator-based parallelization
+- Clean modular architecture with backward compatibility
+- Documentation and examples
+
+Development patterns to follow:
 - Use `tch::Tensor` for all numeric computations
 - Maintain device consistency (CPU/GPU) throughout operations
 - Support batched operations for efficiency
 - Follow the original BERTScore paper's algorithms
+- Use iterator-based patterns for parallelization
 
 ## Project Scratchpad
 
 This section serves as our active thinking and tracking space. Update this frequently while working on the project to capture thoughts, decisions, progress, and insights.
 
 ### Current Focus
-🎉 **Project Complete!** Full BERTScore implementation with tests, examples, benchmarks, CLI tool, and Python bindings infrastructure.
+🎉 **MAJOR REFACTOR COMPLETE!** Successfully integrated core refactor branch with enhanced architecture, CLI tools, and HuggingFace integration. All merge conflicts resolved and comprehensive testing passed.
+
+### Recent Accomplishments (December 2024)
+- ✅ **Code Review & Integration**: Completed comprehensive review of PR #1 (refactor/core-rewrite)
+- ✅ **Merge Conflict Resolution**: Successfully resolved complex merge conflicts in core modules
+- ✅ **Architecture Upgrade**: Integrated modular `core/` architecture with CLI and HuggingFace support
+- ✅ **Testing Verification**: All 16+ tests pass including unit, integration, and new pipeline tests
+- ✅ **Backward Compatibility**: Maintained API compatibility while upgrading internal structure
+- ✅ **Documentation Updates**: Updated README and CLAUDE.md to reflect new capabilities
 
 ### Implementation Progress
-- ✅ Tokenizer module (`tokenizer.rs`) - Complete
-- ✅ Model module (`model.rs`) - Complete
-- ✅ Similarity module (`similarity.rs`) - Complete with tests
-- ✅ IDF module (`idf.rs`) - Complete with tests
-- ✅ Baseline module (`baseline.rs`) - Complete with tests
-- ✅ Pipeline module (`pipeline.rs`) - Complete
-- ✅ Integration tests - Complete (tests/integration_test.rs)
-- ✅ Python bindings - Infrastructure complete (src/python/mod.rs)
-- ✅ Documentation - README.md with comprehensive guide
-- ✅ Examples - Demo showing all features (examples/demo.rs)
-- ✅ CLI Tool - Command-line interface (src/bin/bert-score.rs)
-- ✅ Benchmarks - Performance testing suite (benches/benchmark.rs)
+- ✅ **Core Tokenizer** (`core/tokenizer.rs`) - Complete with HuggingFace integration
+- ✅ **Core Model** (`core/model.rs`) - Complete with enum dispatch
+- ✅ **Core Score** (`core/score.rs`) - Complete with tests (formerly similarity.rs)
+- ✅ **Core IDF** (`core/idf.rs`) - Complete with tests and iterator patterns
+- ✅ **Core Baseline** (`core/baseline.rs`) - Complete with tests
+- ✅ **Core Pipeline** (`core/pipeline.rs`) - Complete with enhanced test suite
+- ✅ **Core API** (`core/api.rs`) - HuggingFace Hub integration for model downloads
+- ✅ **CLI Module** (`cli/`) - Professional clap-based CLI with subcommands
+- ✅ **Integration Tests** - Complete (tests/integration_test.rs + tests/integration_tests_full.rs)
+- ✅ **Python Bindings** - Infrastructure complete (src/python/mod.rs)
+- ✅ **Documentation** - README.md and CLAUDE.md updated with new features
+- ✅ **Examples** - Demo showing all features (examples/demo.rs)
+- ✅ **CLI Binary** - Command-line tool (src/bin/bert-score.rs)
+- ✅ **Benchmarks** - Performance testing suite with criterion (benches/)
 
 ### Key Decisions & Insights
 **Tokenizer Implementation Analysis:**
@@ -170,28 +209,40 @@ This section serves as our active thinking and tracking space. Update this frequ
 ```
 rust-bert-score/
 ├── src/
-│   ├── lib.rs              # Main library entry
-│   ├── tokenizer.rs        # Text preprocessing
-│   ├── model.rs            # Model loading & embeddings
-│   ├── similarity.rs       # Cosine similarity & scoring
-│   ├── idf.rs              # IDF weighting
-│   ├── baseline.rs         # Score rescaling
-│   ├── pipeline.rs         # High-level API
-│   ├── python/mod.rs       # Python bindings
-│   └── bin/bert-score.rs   # CLI tool
+│   ├── lib.rs                 # Main library entry with re-exports
+│   ├── core/                  # Core implementation modules
+│   │   ├── mod.rs             # Core module exports
+│   │   ├── api.rs             # HuggingFace Hub integration
+│   │   ├── baseline.rs        # Score rescaling
+│   │   ├── idf.rs             # IDF weighting with iterators
+│   │   ├── model.rs           # Model loading & embeddings
+│   │   ├── pipeline.rs        # High-level API with enhanced tests
+│   │   ├── score.rs           # Cosine similarity & scoring
+│   │   └── tokenizer.rs       # Text preprocessing with HF support
+│   ├── cli/                   # Command-line interface
+│   │   ├── mod.rs             # CLI module exports
+│   │   ├── score.rs           # Score subcommand
+│   │   ├── similarity.rs      # Similarity subcommand
+│   │   └── types.rs           # CLI argument types
+│   ├── python/mod.rs          # Python bindings
+│   └── bin/bert-score.rs      # CLI binary entry point
 ├── tests/
-│   └── integration_test.rs # Integration tests
+│   ├── integration_test.rs         # Core integration tests
+│   └── integration_tests_full.rs   # Extended integration tests
 ├── examples/
-│   └── demo.rs             # Usage examples
+│   └── demo.rs                # Usage examples
 ├── benches/
-│   └── benchmark.rs        # Performance benchmarks
+│   └── benchmark.rs           # Performance benchmarks
 ├── python/
-│   └── rust_bert_score/    # Python package
-│       └── __init__.py     # Python API
-├── README.md               # Project documentation
-├── Cargo.toml              # Rust dependencies
-├── pyproject.toml          # Python package config
-└── build.sh                # Build script
+│   └── rust_bert_score/       # Python package
+│       └── __init__.py        # Python API
+├── python-benchmark/          # Python comparison benchmarks
+├── scripts/                   # Utility scripts
+├── README.md                  # Updated project documentation
+├── CLAUDE.md                  # Updated development guide
+├── Cargo.toml                 # Dependencies with new crates (clap, hf-hub, etc.)
+├── pyproject.toml             # Python package config
+└── build.sh                   # Build script
 ```
 
 ## Memories & Guidelines

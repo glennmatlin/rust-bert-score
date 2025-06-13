@@ -10,6 +10,9 @@ A high-performance Rust implementation of BERTScore, a metric for evaluating tex
 - 🎯 **Baseline Rescaling**: Interpretable scores through baseline normalization
 - 🔧 **Flexible API**: Both high-level pipeline and low-level module access
 - 🧪 **Well Tested**: Comprehensive unit and integration tests
+- 🛠️ **Command Line Interface**: Professional CLI with clap for batch processing
+- 🤗 **HuggingFace Integration**: Direct model download from HuggingFace Hub
+- ⚡ **Optimized Performance**: Iterator-based parallel processing and LTO compilation
 
 ## Installation
 
@@ -24,15 +27,17 @@ rust-bert-score = "0.1.0"
 
 ## Quick Start
 
+### Library Usage
+
 ```rust
 use rust_bert_score::{BERTScorerBuilder, BERTScoreResult};
 use rust_bert::pipelines::common::ModelType;
 
-// Create a scorer with default settings
+// Create a scorer with HuggingFace model (automatically downloads)
 let scorer = BERTScorerBuilder::new()
     .model(ModelType::Roberta, "roberta-large")
     .language("en")
-    .vocab_paths("/path/to/vocab.json", Some("/path/to/merges.txt"))
+    .vocab_paths(std::path::PathBuf::from("roberta-large"), None) // HF model name
     .use_idf(true)
     .rescale_with_baseline(true)
     .build()?;
@@ -56,30 +61,58 @@ for (i, result) in results.iter().enumerate() {
 }
 ```
 
+### Command Line Interface
+
+```bash
+# Install the CLI tool
+cargo install --path . --bin bert-score
+
+# Score files using HuggingFace models
+bert-score score \
+    --candidates candidates.txt \
+    --references references.txt \
+    --pretrained roberta-large \
+    --model-type roberta \
+    --idf \
+    --baseline
+
+# Score using local vocabulary files
+bert-score score \
+    --candidates candidates.txt \
+    --references references.txt \
+    --vocab /path/to/vocab.json \
+    --merges /path/to/merges.txt \
+    --model-type roberta
+```
+
 ## Architecture
 
-The library is organized into modular components:
+The library follows a clean modular architecture organized into core components:
 
-- **`tokenizer`**: Text preprocessing and tokenization
-- **`model`**: Pre-trained model loading and embedding extraction
-- **`similarity`**: Cosine similarity computation and token matching
-- **`idf`**: Inverse Document Frequency weighting
-- **`baseline`**: Score rescaling for interpretability
-- **`pipeline`**: High-level API orchestrating all components
+- **`core::tokenizer`**: Text preprocessing and tokenization with HuggingFace integration
+- **`core::model`**: Pre-trained model loading and embedding extraction
+- **`core::score`**: Cosine similarity computation and token matching (similarity module)
+- **`core::idf`**: Inverse Document Frequency weighting
+- **`core::baseline`**: Score rescaling for interpretability
+- **`core::pipeline`**: High-level API orchestrating all components
+- **`cli`**: Command-line interface with clap-based argument parsing
+- **`python`**: Python bindings infrastructure (optional)
 
 ## Advanced Usage
 
 ### Custom Configuration
 
 ```rust
-use rust_bert_score::BERTScorerConfig;
+use rust_bert_score::{BERTScorerConfig, BERTScorer};
+use rust_bert::pipelines::common::ModelType;
 use tch::Device;
+use std::path::PathBuf;
 
 let config = BERTScorerConfig {
     model_type: ModelType::Bert,
     model_name: "bert-base-uncased".to_string(),
     language: "en".to_string(),
-    vocab_path: "/path/to/vocab.txt".to_string(),
+    vocab_path: PathBuf::from("/path/to/vocab.txt"),
     merges_path: None,
     lower_case: true,
     device: Device::cuda_if_available(),
@@ -92,6 +125,20 @@ let config = BERTScorerConfig {
 };
 
 let scorer = BERTScorer::new(config)?;
+```
+
+### HuggingFace Model Integration
+
+```rust
+use rust_bert_score::core::api::fetch_vocab_files;
+
+// Automatically download vocabulary files from HuggingFace
+let (vocab_path, merges_path) = fetch_vocab_files("roberta-large")?;
+
+let scorer = BERTScorerBuilder::new()
+    .model(ModelType::Roberta, "roberta-large")
+    .vocab_paths(vocab_path, merges_path)
+    .build()?;
 ```
 
 ### Multi-Reference Scoring
@@ -116,8 +163,8 @@ let results = scorer.score_multi_refs(&candidates, &references)?;
 For fine-grained control, you can use individual modules:
 
 ```rust
-use rust_bert_score::similarity::compute_bertscore;
-use tch::Tensor;
+use rust_bert_score::core::score::compute_bertscore;
+use tch::{Tensor, Device};
 
 // Assume you have embeddings from your model
 let candidate_embeddings = Tensor::randn(&[10, 768], (tch::Kind::Float, Device::Cpu));
@@ -133,7 +180,7 @@ let result = compute_bertscore(
     &cand_mask,
     &ref_mask,
     None, // No IDF weights
-)?;
+);
 ```
 
 ## Model Support
@@ -150,16 +197,18 @@ let result = compute_bertscore(
 The Rust implementation provides significant performance improvements over Python:
 
 - **Batching**: Efficient batch processing on GPU
-- **Parallelization**: Multi-threaded tokenization
+- **Parallelization**: Iterator-based parallel tokenization with rayon
 - **Memory**: Lower memory footprint through careful tensor management
-- **Compilation**: Native code execution without Python overhead
+- **Compilation**: Native code execution with LTO optimization
+- **HuggingFace Integration**: Direct model downloads without Python dependencies
+- **Benchmarking**: Criterion-based performance testing suite
 
 ## Development
 
 ### Building from Source
 
 ```bash
-git clone https://github.com/yourusername/rust-bert-score
+git clone https://github.com/glennmatlin/rust-bert-score
 cd rust-bert-score
 cargo build --release
 ```
@@ -167,11 +216,27 @@ cargo build --release
 ### Running Tests
 
 ```bash
-# Run all tests
+# Run all tests (includes unit and integration tests)
 cargo test
 
-# Run with model download tests (requires internet)
-cargo test -- --ignored
+# Run tests single-threaded if needed
+cargo test -- --test-threads=1
+
+# Run benchmarks
+cargo bench
+```
+
+### CLI Development
+
+```bash
+# Build and install CLI locally
+cargo install --path . --bin bert-score
+
+# Test CLI functionality
+bert-score score --help
+
+# Run similarity computation
+bert-score similarity --help
 ```
 
 ### Documentation
