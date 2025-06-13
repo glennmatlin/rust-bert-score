@@ -247,6 +247,7 @@ rust-bert-score/
 
 ## Additional Context
 
+@.claude/TODO.md
 @.claude/VALIDATION_SUMMARY.md
 @.claude/REQUIREMENTS_VERIFICATION.md
 @.claude/PYTHON.md

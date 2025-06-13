@@ -31,7 +31,8 @@ name = "demo"
 path = "examples/demo.rs"
 
 [[bench]]
-name = "bench"
+name = "performance_benchmarks"
+path = "benchmark/performance_benchmarks.rs"
 harness = false
 
 [[bin]]

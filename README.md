@@ -258,8 +258,8 @@ rust-bert-score/
 │   └── bin/                    # CLI binary entry point
 ├── examples/                   # Usage examples and demos
 │   └── demo.rs                 # Comprehensive feature demonstration
-├── benches/                    # Performance benchmarks (criterion)
-│   └── bench.rs                # CPU/GPU performance tests
+├── benchmark/                  # Performance benchmarks (criterion)
+│   └── performance_benchmarks.rs # CPU/GPU speed testing
 ├── tests/                      # Integration tests
 │   ├── integration_test.rs     # Basic integration tests
 │   └── integration_tests_full.rs # Comprehensive test suite
@@ -277,7 +277,7 @@ rust-bert-score/
 
 - **`src/`**: Core Rust implementation with modular architecture
 - **`examples/`**: Educational demos showing library features
-- **`benches/`**: Performance testing and optimization
+- **`benchmark/`**: Performance testing and speed optimization
 - **`tests/`**: Correctness validation and regression testing
 - **`python/`**: Python distribution package (via maturin)
 - **`python-benchmark/`**: Comprehensive validation against Python bert-score
